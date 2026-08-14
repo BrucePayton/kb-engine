@@ -88,6 +88,9 @@ var toolHandlePolicies = map[string]toolHandlePolicy{
 		sourceTextKeys: map[string]struct{}{"sql": {}},
 		sourceOutput:   true,
 	},
+	"query_cognitive_paths": {
+		sourceOutput: true,
+	},
 	toolDataAnalysis: {
 		sourceIDKeys:   map[string]struct{}{"knowledge_id": {}},
 		sourceTextKeys: map[string]struct{}{"sql": {}},

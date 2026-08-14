@@ -1049,6 +1049,8 @@ export default {
       getDocInfoDesc: '查看文档元数据',
       dbQuery: '查询数据库',
       dbQueryDesc: '查询数据库中的信息',
+      cognitivePathQuery: '查询认知路径',
+      cognitivePathQueryDesc: '只读查询知识空间中的跨领域结构化认知路径、节点、关系和来源文档',
       dataAnalysis: '数据分析',
       dataAnalysisDesc: '理解数据文件并进行数据分析',
       dataSchema: '查看数据元信息',

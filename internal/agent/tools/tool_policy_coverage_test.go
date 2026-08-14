@@ -24,6 +24,7 @@ func TestEveryBuiltInToolDeclaresAModelHandlePolicy(t *testing.T) {
 		ToolSearchConversations,
 		ToolSearchMemory,
 		ToolDatabaseQuery,
+		ToolQueryCognitivePaths,
 		ToolDataAnalysis,
 		ToolDataSchema,
 		ToolWebSearch,

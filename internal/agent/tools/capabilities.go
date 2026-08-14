@@ -62,6 +62,7 @@ var ToolCapabilityRequirements = map[string]ToolRequirement{
 	"query_knowledge_graph": {AnyOf: []KBCapability{CapVector, CapKeyword}, ConsumesFiles: true},
 	"get_document_info":     {AnyOf: []KBCapability{CapVector, CapKeyword}, ConsumesFiles: true},
 	"database_query":        {AnyOf: []KBCapability{CapVector, CapKeyword}, ConsumesFiles: true},
+	"query_cognitive_paths": {AnyOf: []KBCapability{CapVector, CapKeyword, CapWiki, CapGraph, CapFAQ}},
 
 	// ---- Wiki (operates on wiki pages; doesn't consume arbitrary file IDs) ----
 	"wiki_search":          {AllOf: []KBCapability{CapWiki}},

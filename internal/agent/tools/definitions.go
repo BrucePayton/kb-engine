@@ -16,6 +16,7 @@ const (
 	ToolSearchConversations = "search_conversations"
 	ToolSearchMemory        = "search_memory"
 	ToolDatabaseQuery       = "database_query"
+	ToolQueryCognitivePaths = "query_cognitive_paths"
 	ToolDataAnalysis        = "data_analysis"
 	ToolDataSchema          = "data_schema"
 	ToolWebSearch           = "web_search"
@@ -73,6 +74,7 @@ func AvailableToolDefinitions() []AvailableTool {
 			Description: "在用户自己的历史会话中查找之前聊过的内容",
 		},
 		{Name: ToolDatabaseQuery, Label: "查询数据库", Description: "查询数据库中的信息"},
+		{Name: ToolQueryCognitivePaths, Label: "查询认知路径", Description: "只读查询知识空间中的跨领域结构化认知路径、节点、关系及来源"},
 		{Name: ToolDataAnalysis, Label: "数据分析", Description: "理解数据文件并进行数据分析"},
 		{Name: ToolDataSchema, Label: "查看数据元信息", Description: "获取表格文件的元信息"},
 		{Name: ToolReadSkill, Label: "读取技能", Description: "按需读取技能内容以学习专业能力"},

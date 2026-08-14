@@ -106,6 +106,7 @@ type agentService struct {
 	messageService        interfaces.MessageService
 	memoryService         interfaces.MemoryService
 	storageResolver       interfaces.StorageBackendResolver
+	cognitivePathRepo     interfaces.CognitivePathRepository
 	toolApprovalGate      approval.MCPApproval
 	sandboxMgr            sandbox.Manager
 	sandboxResolver       sandbox.TenantSandboxResolver
@@ -133,6 +134,7 @@ func NewAgentService(
 	messageService interfaces.MessageService,
 	memoryService interfaces.MemoryService,
 	storageResolver interfaces.StorageBackendResolver,
+	cognitivePathRepo interfaces.CognitivePathRepository,
 	toolApprovalGate approval.MCPApproval,
 	sandboxMgr sandbox.Manager,
 	sandboxResolver sandbox.TenantSandboxResolver,
@@ -158,6 +160,7 @@ func NewAgentService(
 		messageService:        messageService,
 		memoryService:         memoryService,
 		storageResolver:       storageResolver,
+		cognitivePathRepo:     cognitivePathRepo,
 		toolApprovalGate:      toolApprovalGate,
 		sandboxMgr:            sandboxMgr,
 		sandboxResolver:       sandboxResolver,
@@ -509,6 +512,9 @@ func (s *agentService) registerTools(
 			tools.ToolQueryKnowledgeGraph: true,
 			tools.ToolGetDocumentInfo:     true,
 			tools.ToolDatabaseQuery:       true,
+			// Structured paths are knowledge-space scoped but remain usable
+			// regardless of the underlying search mode selected for that space.
+			tools.ToolQueryCognitivePaths: true,
 			tools.ToolDataAnalysis:        true,
 			tools.ToolDataSchema:          true,
 			// Wiki tools also require at least one KB in scope.
@@ -669,6 +675,8 @@ func (s *agentService) registerTools(
 			toolToRegister = tools.NewSearchMemoryTool(s.memoryService)
 		case tools.ToolDatabaseQuery:
 			toolToRegister = tools.NewDatabaseQueryTool(s.db, config.SearchTargets)
+		case tools.ToolQueryCognitivePaths:
+			toolToRegister = tools.NewCognitivePathQueryTool(s.cognitivePathRepo, config.SearchTargets)
 		case tools.ToolWebSearch:
 			toolToRegister = tools.NewWebSearchTool(
 				s.webSearchService,

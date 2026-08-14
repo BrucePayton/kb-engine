@@ -5278,6 +5278,8 @@ export default {
       getDocInfoDesc: 'View document metadata',
       dbQuery: 'Query Database',
       dbQueryDesc: 'Query information from the database',
+      cognitivePathQuery: 'Query Cognitive Paths',
+      cognitivePathQueryDesc: 'Read domain-neutral structured cognitive paths, nodes, relations, and source provenance from knowledge spaces',
       dataAnalysis: 'Data Analysis',
       dataAnalysisDesc: 'Understand data files and perform data analysis',
       dataSchema: 'View Data Schema',
