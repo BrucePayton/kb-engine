@@ -43,6 +43,9 @@ func TestLoadConfigFromEnv_ExplicitDisableOverridesKeys(t *testing.T) {
 	if cfg.Enabled {
 		t.Fatalf("expected Enabled=false when LANGFUSE_ENABLED=false")
 	}
+	if !cfg.HasCredentials() {
+		t.Fatal("expected credentials to remain available for prompt sync")
+	}
 }
 
 func TestLoadConfigFromEnv_FlushIntervalAcceptsSecondsAndDuration(t *testing.T) {

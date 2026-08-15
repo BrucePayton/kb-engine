@@ -1,6 +1,9 @@
 package types
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestCustomAgentConfigResolveChatParserEngine(t *testing.T) {
 	config := &CustomAgentConfig{ChatParserEngineRules: []ParserEngineRule{
@@ -52,5 +55,21 @@ func TestEnsureDefaults_CitationsDefaultEnabledAndPreserveFalse(t *testing.T) {
 	explicit.EnsureDefaults()
 	if explicit.Config.CitationEnabled == nil || *explicit.Config.CitationEnabled {
 		t.Fatal("EnsureDefaults must preserve explicit citation_enabled=false")
+	}
+}
+
+func TestCustomAgentConfigParallelToolCallsJSONRoundTrip(t *testing.T) {
+	original := CustomAgentConfig{ParallelToolCalls: true}
+	payload, err := json.Marshal(original)
+	if err != nil {
+		t.Fatalf("marshal CustomAgentConfig: %v", err)
+	}
+
+	var decoded CustomAgentConfig
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		t.Fatalf("unmarshal CustomAgentConfig: %v", err)
+	}
+	if !decoded.ParallelToolCalls {
+		t.Fatal("parallel_tool_calls must survive JSON persistence")
 	}
 }

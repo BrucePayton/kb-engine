@@ -1116,6 +1116,8 @@ export default {
       rewriteUserPrompt: '用于问题改写的用户提示词模板（留空使用默认）',
       selectTools: '选择 Agent 可以使用的工具',
       maxIterations: 'Agent 执行任务时的最大推理步骤数',
+      parallelToolCalls: '并行工具调用',
+      parallelToolCallsDesc: '允许智能体并行执行同一推理轮次中互不依赖的多个工具调用；存在依赖关系的调用仍应按顺序执行',
       kbScope: '选择智能体可访问的知识库范围',
       webSearch: '启用后智能体可以搜索互联网获取信息',
       webSearchProvider: '为此智能体指定搜索引擎，留空则使用默认搜索引擎',

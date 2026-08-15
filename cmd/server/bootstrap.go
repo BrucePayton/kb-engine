@@ -14,6 +14,8 @@ import (
 	"go.uber.org/dig"
 
 	"github.com/Tencent/WeKnora/internal/logger"
+	"github.com/Tencent/WeKnora/internal/prompts"
+	"github.com/Tencent/WeKnora/internal/tracing/langfuse"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
 )
 
@@ -53,16 +55,46 @@ func runStartupBootstrap(c *dig.Container) {
 	}
 
 	email := strings.TrimSpace(os.Getenv(bootstrapEnvVar))
-	if email == "" {
+	if email != "" {
+		// dig.Invoke resolves UserService from the container; if user
+		// service registration is broken we want to know loudly, but still
+		// not abort startup — bootstrap is best-effort.
+		if err := c.Invoke(func(userSvc interfaces.UserService) {
+			bootstrapSystemAdmin(ctx, userSvc, email)
+		}); err != nil {
+			logger.Warnf(ctx, "[bootstrap] failed to resolve UserService: %v", err)
+		}
+	}
+	// This must stay independent of the optional system-admin bootstrap above:
+	// most deployments do not configure a bootstrap email but still need prompt
+	// publication whenever Langfuse credentials are available.
+	bootstrapLangfusePrompts(ctx)
+}
+
+// bootstrapLangfusePrompts mirrors the reference project's best-effort
+// registry publication. It never changes Go constants, YAML files, database
+// agent settings, or Git state; a failure must not block server startup.
+func bootstrapLangfusePrompts(ctx context.Context) {
+	cfg := langfuse.LoadConfigFromEnv()
+	if !cfg.HasCredentials() {
 		return
 	}
-	// dig.Invoke resolves UserService from the container; if user
-	// service registration is broken we want to know loudly, but still
-	// not abort startup — bootstrap is best-effort.
-	if err := c.Invoke(func(userSvc interfaces.UserService) {
-		bootstrapSystemAdmin(ctx, userSvc, email)
-	}); err != nil {
-		logger.Warnf(ctx, "[bootstrap] failed to resolve UserService: %v", err)
+	entries := prompts.RegisterAll()
+	if len(entries) == 0 {
+		return
+	}
+	client := langfuse.NewPromptSyncClient(cfg)
+	failed := 0
+	for _, prompt := range entries {
+		if err := client.SyncPrompt(ctx, prompt); err != nil {
+			failed++
+			logger.Warnf(ctx, "[bootstrap] Langfuse prompt sync %s/%s failed: %v", prompt.Category, prompt.Name, err)
+		}
+	}
+	if failed > 0 {
+		logger.Warnf(ctx, "[bootstrap] Langfuse prompt sync: %d/%d failed", failed, len(entries))
+	} else {
+		logger.Infof(ctx, "[bootstrap] Langfuse prompt sync: %d prompts synced", len(entries))
 	}
 }
 

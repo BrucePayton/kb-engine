@@ -2,6 +2,19 @@
 
 WeKnora 内置了对 [Langfuse](https://langfuse.com) 的轻量级集成，用于统计 token 消耗、追踪 LLM 调用链路、并为每个对话生成可在 Langfuse 控制台查看的 trace。该集成解决 issue [#497](https://github.com/Tencent/WeKnora/issues/497)（token 使用量统计）和 discussion [#620](https://github.com/Tencent/WeKnora/discussions/620)（接入 Langfuse）。
 
+## 静态提示词同步
+
+系统拥有的静态提示词由 `internal/prompts` 注册表显式管理：现有 YAML 模板与 Wiki Go 常量会在服务启动时 best-effort 同步到 Langfuse。同步失败不会阻止服务启动。也可显式执行：
+
+```bash
+make prompts-check
+make prompts-publish
+go run ./cmd/sync_prompts --all --dry-run
+go run ./cmd/sync_prompts --pull --name wiki_summary
+```
+
+`--pull` 仅查询并打印 Langfuse 版本，不会回写 YAML、Go、数据库或 Git。用户在 UI 中修改的 Agent 提示词属于租户数据库资源，未纳入此静态注册表，需由独立的租户级同步功能处理。
+
 ## 1. 特性
 
 - 自动上报 **chat / embedding / rerank / VLM（视觉语言模型）/ ASR（语音识别）** 全部 5 类模型调用的 prompt、响应和 token 使用量。
@@ -210,7 +223,7 @@ Dev 相关容器都带 `-dev` 后缀、用独立网络 `WeKnora-network-dev`，�
 
 | 变量名 | 默认值 | 说明 |
 | --- | --- | --- |
-| `LANGFUSE_ENABLED` | 自动 | 显式开关。未设置时，只要 `PUBLIC_KEY` + `SECRET_KEY` 都存在就自动启用。支持 `true/false/1/0/yes/no`。 |
+| `LANGFUSE_ENABLED` | 自动 | 项目原有的显式 tracing 开关；静态提示词启动同步仅根据 Public/Secret Key 是否同时存在决定是否执行。 |
 | `LANGFUSE_HOST` | `https://cloud.langfuse.com` | Langfuse 实例地址。美区用 `https://us.cloud.langfuse.com`，自建实例填 `https://langfuse.your-domain.com`。 |
 | `LANGFUSE_PUBLIC_KEY` | — | 项目 Public Key（`pk-lf-...`）。 |
 | `LANGFUSE_SECRET_KEY` | — | 项目 Secret Key（`sk-lf-...`），请走密钥管理工具注入，不要提交到仓库。 |

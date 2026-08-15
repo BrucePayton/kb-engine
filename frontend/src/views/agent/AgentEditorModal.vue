@@ -1120,6 +1120,17 @@
                   </div>
 
                   <div class="settings-group">
+                    <!-- 工具执行策略 -->
+                    <div class="setting-row" data-agent-field="parallel_tool_calls">
+                      <div class="setting-info">
+                        <label>{{ $t('agent.editor.parallelToolCalls') }}</label>
+                        <p class="desc">{{ $t('agent.editor.parallelToolCallsDesc') }}</p>
+                      </div>
+                      <div class="setting-control">
+                        <t-switch v-model="formData.config.parallel_tool_calls" />
+                      </div>
+                    </div>
+
                     <!-- 允许的工具（按组渲染，统一网格） -->
                     <div
                       class="setting-row setting-row-vertical"
@@ -2365,6 +2376,7 @@ const defaultFormData = {
     citation_enabled: true, // 默认输出知识库/网页来源引用
     // Agent模式设置
     max_iterations: 10,
+    parallel_tool_calls: false,
     llm_call_timeout: 120,  // 120 seconds
     allowed_tools: [] as string[],
     reflection_enabled: false,

@@ -1,4 +1,4 @@
-.PHONY: help build run test clean docker-build-app docker-build-docreader docker-build-frontend docker-build-all docker-run migrate-up migrate-down docker-restart docker-stop start-all stop-all start-ollama stop-ollama build-images build-images-app build-images-docreader build-images-frontend clean-images check-env list-containers pull-images show-platform dev-start dev-stop dev-restart dev-logs dev-status dev-app dev-frontend docs install-swagger build-lite run-lite package-lite
+.PHONY: help build run test clean docker-build-app docker-build-docreader docker-build-frontend docker-build-all docker-run migrate-up migrate-down docker-restart docker-stop start-all stop-all start-ollama stop-ollama build-images build-images-app build-images-docreader build-images-frontend clean-images check-env list-containers pull-images show-platform dev-start dev-stop dev-restart dev-logs dev-status dev-app dev-frontend docs install-swagger build-lite run-lite package-lite prompts-check prompts-publish
 
 # Show help
 help:
@@ -44,6 +44,8 @@ help:
 	@echo ""
 	@echo "环境检查:"
 	@echo "  check-env         检查环境配置"
+	@echo "  prompts-check     校验 Langfuse 静态提示词注册表"
+	@echo "  prompts-publish   同步注册的静态提示词到 Langfuse"
 	@echo "  list-containers   列出运行中的容器"
 	@echo "  pull-images       拉取最新镜像"
 	@echo "  show-platform     显示当前构建平台"
@@ -87,6 +89,12 @@ endif
 build:
 	go build -o $(BINARY_NAME) $(MAIN_PATH)
 
+prompts-check:
+	go test ./internal/prompts
+
+prompts-publish:
+	go run ./cmd/sync_prompts --all
+
 # Run the application
 run: build
 	./$(BINARY_NAME)
@@ -106,6 +114,7 @@ docker-build-app:
 	@eval $$(./scripts/get_version.sh env); \
 	./scripts/get_version.sh info; \
 	docker build --platform $(PLATFORM) \
+		--build-arg APK_MIRROR_ARG="$${APK_MIRROR_ARG:-}" \
 		--build-arg VERSION_ARG="$$VERSION" \
 		--build-arg COMMIT_ID_ARG="$$COMMIT_ID" \
 		--build-arg BUILD_TIME_ARG="$$BUILD_TIME" \
@@ -331,5 +340,3 @@ dev-app:
 
 dev-frontend:
 	./scripts/dev.sh frontend
-
-

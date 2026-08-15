@@ -121,6 +121,13 @@ func LoadConfigFromEnv() Config {
 	return cfg
 }
 
+// HasCredentials reports whether Prompt Management requests can authenticate.
+// It is intentionally independent of LANGFUSE_ENABLED so static prompt
+// publication is controlled solely by its required credentials.
+func (c Config) HasCredentials() bool {
+	return strings.TrimSpace(c.PublicKey) != "" && strings.TrimSpace(c.SecretKey) != ""
+}
+
 // Validate verifies required fields are present when Langfuse is enabled.
 func (c Config) Validate() error {
 	if !c.Enabled {

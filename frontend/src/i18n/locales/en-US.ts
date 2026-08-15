@@ -980,6 +980,8 @@ export default {
       rerankModelPlaceholder: 'Select ReRank Model',
       rerankModelOptionalHint: 'No RAG knowledge base in current scope, so this is optional. If a RAG knowledge base is added later, the workspace default rerank model will be used as a fallback. Configuring it explicitly is still recommended.',
       maxIterations: 'Max Iterations',
+      parallelToolCalls: 'Parallel Tool Calls',
+      parallelToolCallsDesc: 'Run independent tool calls from the same reasoning round concurrently; calls with dependencies should still run in order',
       allowedTools: 'Allowed Tools',
       multiTurn: 'Multi-turn Conversation',
       historyTurns: 'History Turns',

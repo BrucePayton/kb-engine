@@ -50,6 +50,7 @@ export interface CustomAgentConfig {
 
   // ===== Agent模式设置 =====
   max_iterations?: number;          // 最大迭代次数
+  parallel_tool_calls?: boolean;    // 是否并行执行同一轮中互不依赖的工具调用
   llm_call_timeout?: number;        // LLM调用超时时间（秒）
   allowed_tools?: string[];         // 允许的工具
   reflection_enabled?: boolean;     // 是否启用反思
