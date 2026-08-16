@@ -14,6 +14,34 @@ import (
 	"github.com/Tencent/WeKnora/internal/types"
 )
 
+func TestWikiLanguageDefaultsToSimplifiedChinese(t *testing.T) {
+	t.Setenv("WEKNORA_LANGUAGE", "")
+
+	if got := types.LanguageFromContextOrDefault(context.Background()); got != "zh-CN" {
+		t.Fatalf("LanguageFromContextOrDefault() = %q, want zh-CN", got)
+	}
+	if got := types.ResolveLanguageName(context.Background(), ""); got != "Chinese (Simplified)" {
+		t.Fatalf("ResolveLanguageName() = %q, want Chinese (Simplified)", got)
+	}
+}
+
+func TestWikiLanguageKeepsExplicitLanguage(t *testing.T) {
+	t.Setenv("WEKNORA_LANGUAGE", "")
+
+	if got := types.ResolveLanguage(context.Background(), " en-US "); got != "en-US" {
+		t.Fatalf("ResolveLanguage() = %q, want en-US", got)
+	}
+}
+
+func TestWikiLanguageUsesContextBeforeDeploymentDefault(t *testing.T) {
+	t.Setenv("WEKNORA_LANGUAGE", "en-US")
+	ctx := context.WithValue(context.Background(), types.LanguageContextKey, " zh-TW ")
+
+	if got := types.ResolveLanguage(ctx, ""); got != "zh-TW" {
+		t.Fatalf("ResolveLanguage() = %q, want zh-TW", got)
+	}
+}
+
 func TestSlugify(t *testing.T) {
 	tests := []struct {
 		input string

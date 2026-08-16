@@ -18,7 +18,11 @@ const WikiTaxonomyPlanPrompt = `You are organizing a wiki knowledge base into a 
 </items>
 
 <instructions>
-For every item, output a category path: an array of folder labels from broad to narrow (at most 2 levels). The category classifies WHAT the item fundamentally IS (the stable library "shelf" it always sits on), never the role it plays in one document.
+For every item, output a category path: an array of folder labels from broad to narrow (at most 3 levels). If the knowledge-base business instructions define a domain-specific stable hierarchy, follow that hierarchy. Otherwise classify WHAT the item fundamentally IS (the stable library "shelf" it always sits on), never the temporary role it plays in one document.
+
+When the business instructions distinguish fixed levels, controlled levels, and dynamic levels, obey each level's governance separately: copy fixed labels exactly, choose controlled labels from the supplied business vocabulary, and generate a dynamic final level only under the stated creation rules.
+
+When the business instructions provide seed folders, treat them as preferred vocabulary, not a hard allowlist, unless the instructions explicitly say "only allowed". Reuse an existing or seed label whenever it fits. Create a new durable label only when no existing or seed label fits, and never create a synonym of an existing label.
 
 How to choose a path for each item:
 1. If an existing folder in <existing_folders> fits, REUSE its EXACT label (character-for-character). Do NOT invent a synonym folder (e.g. do NOT create "春节习俗" when "春节 / 传统习俗" already fits).
@@ -27,7 +31,7 @@ How to choose a path for each item:
 
 Other rules:
 - Group items of the SAME kind under the SAME folder at the SAME depth. Do not file one equivalent item a level deeper than its siblings (e.g. avoid "地点 / 地址 / Address1" next to "地点 / Address2" — pick one consistent depth for equivalent items).
-- Prefer a single broad top-level folder; add a second level only for a genuinely durable sub-domain shared by several items.
+- Prefer the shortest stable path. Add a second or third level only for durable domain dimensions shared by several items.
 - Do NOT use the item type ("entity"/"concept") as a folder. Do NOT put slashes inside a single label.
 - Every item slug in <items> MUST appear exactly once in the output.
 - Write ALL folder labels in {{.Language}}.

@@ -10,10 +10,9 @@ import (
 )
 
 // WikiCategoryMaxDepth is the hard cap on how many folder levels a wiki page's
-// category_path may keep. The ingest prompts intentionally ask the model for at
-// most 2 levels to keep the directory tree shallow; this storage cap is one
-// level deeper as a defensive bound so a slightly over-eager model (or a
-// reconcile remap) cannot create an unbounded breadcrumb. It is the single
+// category_path may keep. The ingest taxonomy prompt uses the same three-level
+// limit so a KB can express a compact domain hierarchy without creating an
+// unbounded breadcrumb. It is the single
 // source of truth shared by the service, repository, and taxonomy layers so
 // stored paths and queried paths are always cleaned identically.
 const WikiCategoryMaxDepth = 3

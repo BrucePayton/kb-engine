@@ -61,6 +61,15 @@ func (s *wikiIngestService) planBatchTaxonomy(
 	// directory. Small/healthy taxonomies are fed whole (best recall, no cost).
 	existing := s.selectRelevantFolders(ctx, kb, items, pool)
 
+	// Reuse the KB-scoped extraction guidance for taxonomy planning. This keeps
+	// domain-specific directory semantics (for example category/product family/domain)
+	// configurable per knowledge base without adding another persistence/UI field.
+	// Stable taxonomy JSON and path-safety rules remain system-owned.
+	taxonomyInstructions := ""
+	if kb.WikiConfig != nil {
+		taxonomyInstructions = kb.WikiConfig.ExtractionInstructions
+	}
+
 	result := make(map[string][]string, len(items))
 	for start := 0; start < len(items); start += wikiTaxonomyPlanChunkSize {
 		end := start + wikiTaxonomyPlanChunkSize
@@ -81,9 +90,11 @@ func (s *wikiIngestService) planBatchTaxonomy(
 		}
 
 		raw, err := s.generateWithTemplate(ctx, chatModel, agent.WikiTaxonomyPlanPrompt, map[string]string{
-			"ExistingTaxonomy": tree,
-			"Items":            itemsBlock.String(),
-			"Language":         lang,
+			"ExistingTaxonomy":   tree,
+			"Items":              itemsBlock.String(),
+			"Language":           lang,
+			"CustomInstructions": taxonomyInstructions,
+			"InstructionScope":   "wiki_taxonomy",
 		})
 		if err != nil {
 			logger.Warnf(ctx, "wiki ingest: taxonomy plan call failed (%d items): %v", len(chunk), err)

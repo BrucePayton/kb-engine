@@ -25,7 +25,9 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1012,8 +1014,32 @@ func (a *Adapter) cardkitUpdateElement(ctx context.Context, accessToken, cardID,
 var feishuMarkdownImageRe = regexp.MustCompile(`!\[([^\]]*)\]\((https?://[^)\s]+)\)`)
 
 // feishuMaxImageBytes caps the download size of an image before uploading to
-// Feishu (Feishu's limit is 10MB; keep a small margin).
-const feishuMaxImageBytes = 10 << 20
+// Feishu and matches Feishu's 20 MiB image upload limit.
+const feishuMaxImageBytes = 20 << 20
+
+const (
+	feishuImageDownloadTimeoutEnv     = "FEISHU_IMAGE_DOWNLOAD_TIMEOUT_SECONDS"
+	defaultFeishuImageDownloadTimeout = 30 * time.Second
+)
+
+func feishuImageDownloadTimeout() time.Duration {
+	raw := strings.TrimSpace(os.Getenv(feishuImageDownloadTimeoutEnv))
+	if raw == "" {
+		return defaultFeishuImageDownloadTimeout
+	}
+
+	seconds, err := strconv.Atoi(raw)
+	if err != nil || seconds <= 0 {
+		return defaultFeishuImageDownloadTimeout
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+func newFeishuImageDownloadClient() *http.Client {
+	config := utils.DefaultSSRFSafeHTTPClientConfig()
+	config.Timeout = feishuImageDownloadTimeout()
+	return utils.NewSSRFSafeHTTPClient(config)
+}
 
 var (
 	feishuImageKeyMu    sync.Mutex
@@ -1021,7 +1047,7 @@ var (
 	// feishuImageDownloadClient validates resolved IPs before connecting so that
 	// downloading a URL embedded in model/knowledge content cannot be abused for
 	// SSRF against internal services.
-	feishuImageDownloadClient = utils.NewSSRFSafeHTTPClient(utils.DefaultSSRFSafeHTTPClientConfig())
+	feishuImageDownloadClient = newFeishuImageDownloadClient()
 )
 
 // imageCacheKey normalizes a URL for caching by dropping the query string, so a

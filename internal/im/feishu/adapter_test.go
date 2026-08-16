@@ -2,9 +2,67 @@ package feishu
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestFeishuImageDownloadTimeout(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  time.Duration
+	}{
+		{name: "unset uses default", want: 30 * time.Second},
+		{name: "custom seconds", value: "120", want: 120 * time.Second},
+		{name: "whitespace is accepted", value: " 45 ", want: 45 * time.Second},
+		{name: "invalid uses default", value: "invalid", want: 30 * time.Second},
+		{name: "zero uses default", value: "0", want: 30 * time.Second},
+		{name: "negative uses default", value: "-1", want: 30 * time.Second},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("FEISHU_IMAGE_DOWNLOAD_TIMEOUT_SECONDS", tt.value)
+			if got := feishuImageDownloadTimeout(); got != tt.want {
+				t.Errorf("feishuImageDownloadTimeout() = %s, want %s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNewFeishuImageDownloadClientUsesConfiguredTimeout(t *testing.T) {
+	t.Setenv("FEISHU_IMAGE_DOWNLOAD_TIMEOUT_SECONDS", "120")
+
+	if got := newFeishuImageDownloadClient().Timeout; got != 120*time.Second {
+		t.Errorf("newFeishuImageDownloadClient().Timeout = %s, want %s", got, 120*time.Second)
+	}
+}
+
+func TestFeishuImageSizeLimits(t *testing.T) {
+	const want = 20 << 20
+
+	if feishuMaxImageBytes != want {
+		t.Errorf("feishuMaxImageBytes = %d, want %d", feishuMaxImageBytes, want)
+	}
+}
+
+func TestBuildStreamingCardJSONUsesProductTitle(t *testing.T) {
+	var card struct {
+		Header struct {
+			Title struct {
+				Content string `json:"content"`
+			} `json:"title"`
+		} `json:"header"`
+	}
+	if err := json.Unmarshal([]byte(buildStreamingCardJSON(RegionFeishu)), &card); err != nil {
+		t.Fatalf("unmarshal streaming card: %v", err)
+	}
+	if got, want := card.Header.Title.Content, "WeKnora"; got != want {
+		t.Errorf("streaming card title = %q, want %q", got, want)
+	}
+}
 
 func TestFeishuThreadID_ThreadedReply(t *testing.T) {
 	// Simulate: message is a reply in a thread (root_id is set)

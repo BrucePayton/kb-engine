@@ -314,7 +314,9 @@ func ResolveLanguage(ctx context.Context, locale string) string {
 		return locale
 	}
 	if ctxLocale, ok := LanguageFromContext(ctx); ok {
-		return ctxLocale
+		if ctxLocale = strings.TrimSpace(ctxLocale); ctxLocale != "" {
+			return ctxLocale
+		}
 	}
 	return DefaultLanguage()
 }
