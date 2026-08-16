@@ -148,6 +148,11 @@ func AsynqMiddleware() asynq.MiddlewareFunc {
 					"task_type": task.Type(),
 					"outcome":   outcome,
 				})
+			} else {
+				// A propagated task does not own/end the upstream root trace, but
+				// its worker span still has to become durable before the task is
+				// acknowledged. Standalone tasks are flushed by Trace.Finish above.
+				mgr.flushCompletedTrace("asynq.propagated_task")
 			}
 
 			return err

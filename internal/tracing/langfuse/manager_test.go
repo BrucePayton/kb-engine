@@ -26,3 +26,20 @@ func TestManager_DisabledIsNoop(t *testing.T) {
 		t.Fatalf("shutdown: %v", err)
 	}
 }
+
+// TestManager_ForceFlushExportsCompletedTrace exercises the same durability
+// boundary used by live HTTP and async requests.
+func TestManager_ForceFlushExportsCompletedTrace(t *testing.T) {
+	m, exp := newTestManager(t)
+	_, trace := m.StartTrace(context.Background(), TraceOptions{Name: "flush-boundary"})
+	trace.Finish(map[string]string{"status": "ok"}, nil)
+	if err := m.ForceFlush(context.Background()); err != nil {
+		t.Fatalf("force flush: %v", err)
+	}
+	for _, span := range exp.GetSpans() {
+		if span.Name == "flush-boundary" {
+			return
+		}
+	}
+	t.Fatal("completed root trace was not exported")
+}

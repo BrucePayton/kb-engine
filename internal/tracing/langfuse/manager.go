@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/Tencent/WeKnora/internal/logger"
 	"go.opentelemetry.io/otel/attribute"
@@ -35,6 +36,9 @@ type Manager struct {
 
 	tp     *sdktrace.TracerProvider
 	tracer trace.Tracer
+	// flushMu prevents concurrent request completions from issuing overlapping
+	// ForceFlush calls against the shared BatchSpanProcessor/exporter.
+	flushMu sync.Mutex
 
 	closed atomic.Bool
 }
@@ -131,6 +135,39 @@ func (m *Manager) Tracer() trace.Tracer {
 		return noop.NewTracerProvider().Tracer(langfuseScopeName)
 	}
 	return m.tracer
+}
+
+// ForceFlush synchronously exports every span that has ended so far. Online
+// request traces call this at the root-trace boundary instead of relying only
+// on the BatchSpanProcessor timer: a healthy HTTP/agent response must be
+// discoverable in Langfuse when the response completes.
+func (m *Manager) ForceFlush(ctx context.Context) error {
+	if m == nil || !m.Enabled() {
+		return nil
+	}
+	m.flushMu.Lock()
+	defer m.flushMu.Unlock()
+	return m.tp.ForceFlush(ctx)
+}
+
+// flushCompletedTrace is the common durability boundary for root traces. It
+// is intentionally bounded so an observability outage cannot hang production
+// traffic indefinitely; failures are always logged and never replace the
+// application response.
+func (m *Manager) flushCompletedTrace(source string) {
+	if m == nil || !m.Enabled() {
+		return
+	}
+	const timeout = 5 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := m.ForceFlush(ctx); err != nil {
+		logger.Errorf(context.Background(), "[Langfuse] force flush failed source=%s: %v", source, err)
+		return
+	}
+	if m.cfg.Debug {
+		logger.Debugf(context.Background(), "[Langfuse] force flush completed source=%s", source)
+	}
 }
 
 // Shutdown flushes pending spans and releases the exporter. Safe to call

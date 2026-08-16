@@ -141,6 +141,10 @@ func (t *Trace) Finish(output interface{}, metadata map[string]interface{}) {
 	}
 	t.span.SetAttributes(attrs...)
 	t.span.End()
+	// Ending a root trace is the durability boundary for the complete request
+	// tree. Flush synchronously so HTTP, agent, retrieval and standalone model
+	// traces are visible in Langfuse when their operation returns.
+	t.manager.flushCompletedTrace("trace.finish")
 }
 
 // ResumeTrace reconstructs a *Trace handle from an externally-provided W3C
