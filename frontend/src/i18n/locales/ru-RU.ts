@@ -534,6 +534,7 @@ export default {
       playgroundStepSession: 'Шаг 1: создать Session',
       playgroundStepChat: 'Шаг 2: Agent Chat SSE',
       playgroundFinalAnswer: 'Извлечённый ответ',
+      playgroundThinking: 'Процесс рассуждения',
       playgroundEmptyResult: 'Запустите тест, чтобы увидеть здесь ответ Session, сырой SSE output и извлечённый ответ.',
       playgroundSuccess: 'Тест завершён ({ms}ms)',
       playgroundStopped: 'Тест остановлен',

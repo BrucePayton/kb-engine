@@ -173,6 +173,9 @@ func (r *sourceRegistry) ExpandText(text string) string {
 		}
 		handle := strings.ToLower(match[1])
 		if chunkID, chunkRef, ok := r.chunks.resolve(handle); ok {
+			if chunkRef.SourceURL != "" {
+				return markdownLink(chunkRef.DocumentTitle, chunkRef.SourceURL)
+			}
 			attrs := fmt.Sprintf(`doc="%s" chunk_id="%s"`, escapeAttr(chunkRef.DocumentTitle), escapeAttr(chunkID))
 			if chunkRef.KnowledgeBaseID != "" {
 				attrs += fmt.Sprintf(` kb_id="%s"`, escapeAttr(chunkRef.KnowledgeBaseID))
@@ -187,6 +190,18 @@ func (r *sourceRegistry) ExpandText(text string) string {
 }
 
 func escapeAttr(value string) string { return html.EscapeString(value) }
+
+func markdownLink(title, rawURL string) string {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		title = "飞书原文"
+	}
+	title = strings.NewReplacer(`\`, `\\`, `[`, `\[`, `]`, `\]`, "\r", " ", "\n", " ").Replace(title)
+	// Parentheses are legal in URLs but must be escaped inside an inline
+	// Markdown destination to avoid prematurely closing the link.
+	rawURL = strings.NewReplacer(`\`, `\\`, `(`, `\(`, `)`, `\)`).Replace(rawURL)
+	return "[" + title + "](" + rawURL + ")"
+}
 
 // citationStreamExpander prevents partial private <ref/> tags from reaching SSE while
 // preserving normal streaming for all other content.

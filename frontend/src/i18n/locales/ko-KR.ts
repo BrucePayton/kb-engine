@@ -534,6 +534,7 @@ export default {
       playgroundStepSession: '1단계: Session 생성',
       playgroundStepChat: '2단계: Agent Chat SSE',
       playgroundFinalAnswer: '추출된 답변',
+      playgroundThinking: '사고 과정',
       playgroundEmptyResult: '테스트를 실행하면 Session 응답, 원시 SSE 출력, 추출된 답변이 여기에 표시됩니다.',
       playgroundSuccess: '테스트 완료({ms}ms)',
       playgroundStopped: '테스트가 중지되었습니다',

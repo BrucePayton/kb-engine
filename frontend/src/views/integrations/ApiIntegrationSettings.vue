@@ -448,6 +448,13 @@
             <pre>{{ playground.stream_output || '-' }}</pre>
           </div>
 
+          <div v-if="playground.thinking" class="playground-step">
+            <div class="playground-step__header">
+              <span>{{ $t('integrations.api.playgroundThinking') }}</span>
+            </div>
+            <pre>{{ playground.thinking }}</pre>
+          </div>
+
           <div v-if="playground.final_answer" class="playground-step">
             <div class="playground-step__header">
               <span>{{ $t('integrations.api.playgroundFinalAnswer') }}</span>
@@ -930,6 +937,7 @@ const playground = reactive({
   session_response: '',
   stream_output: '',
   final_answer: '',
+  thinking: '',
   error: '',
 })
 
@@ -1050,7 +1058,7 @@ const playgroundDisabledReason = computed(() => {
 const canRunPlayground = computed(() => !playground.running && !playgroundDisabledReason.value)
 
 const hasPlaygroundResult = computed(() => Boolean(
-  playground.signed_token || playground.session_response || playground.stream_output || playground.final_answer,
+  playground.signed_token || playground.session_response || playground.stream_output || playground.final_answer || playground.thinking,
 ))
 
 const tokenSignExample = computed(() => {
@@ -1645,6 +1653,7 @@ async function runPlayground() {
   playground.session_response = ''
   playground.stream_output = ''
   playground.final_answer = ''
+  playground.thinking = ''
   playground.signed_token = ''
 
   const startedAt = performance.now()
@@ -1699,12 +1708,14 @@ async function runPlayground() {
       throw new Error(t('integrations.api.playgroundNoStream'))
     }
 
-    const result = await consumeApiPlaygroundSSE(chatResp.body, ({ raw, answer }) => {
+    const result = await consumeApiPlaygroundSSE(chatResp.body, ({ raw, answer, thinking }) => {
       playground.stream_output = compactText(raw)
       playground.final_answer = answer
+      playground.thinking = thinking
     })
     playground.stream_output = compactText(result.raw)
     playground.final_answer = result.answer
+    playground.thinking = result.thinking
     if (result.status === 'failed') {
       playground.chat_status = 'failed'
       throw new Error(result.error || t('integrations.api.playgroundFailed'))

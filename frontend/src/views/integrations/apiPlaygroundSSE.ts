@@ -1,6 +1,7 @@
 export interface ApiPlaygroundSSEProgress {
   raw: string
   answer: string
+  thinking: string
 }
 
 export type ApiPlaygroundSSEResult = ApiPlaygroundSSEProgress & (
@@ -51,7 +52,7 @@ function readEventData(frame: string): string | undefined {
   return dataLines.length ? dataLines.join('\n') : undefined
 }
 
-function applyFrame(frame: string, answerChunks: string[]): TerminalState | undefined {
+function applyFrame(frame: string, answerChunks: string[], thinkingChunks: string[]): TerminalState | undefined {
   const data = readEventData(frame)
   if (data === undefined) return undefined
   if (data.trim() === '[DONE]') return { status: 'success' }
@@ -68,6 +69,9 @@ function applyFrame(frame: string, answerChunks: string[]): TerminalState | unde
   const responseType = payload.response_type ?? payload.type
   if (responseType === 'answer' && typeof payload.content === 'string') {
     answerChunks.push(payload.content)
+  }
+  if (responseType === 'thinking' && typeof payload.content === 'string') {
+    thinkingChunks.push(payload.content)
   }
   if (responseType === 'error') {
     return { status: 'failed', error: readErrorMessage(payload) }
@@ -90,11 +94,12 @@ export async function consumeApiPlaygroundSSE(
   const reader = stream.getReader()
   const decoder = new TextDecoder()
   const answerChunks: string[] = []
+  const thinkingChunks: string[] = []
   let raw = ''
   let buffer = ''
 
   const progress = () => {
-    const value = { raw, answer: answerChunks.join('') }
+    const value = { raw, answer: answerChunks.join(''), thinking: thinkingChunks.join('') }
     onProgress?.(value)
     return value
   }
@@ -105,11 +110,11 @@ export async function consumeApiPlaygroundSSE(
       if (!boundary || boundary.index === undefined) break
       const frame = buffer.slice(0, boundary.index)
       buffer = buffer.slice(boundary.index + boundary[0].length)
-      const terminal = applyFrame(frame, answerChunks)
+      const terminal = applyFrame(frame, answerChunks, thinkingChunks)
       if (terminal) return terminal
     }
     if (flush && buffer) {
-      const terminal = applyFrame(buffer, answerChunks)
+      const terminal = applyFrame(buffer, answerChunks, thinkingChunks)
       buffer = ''
       return terminal
     }

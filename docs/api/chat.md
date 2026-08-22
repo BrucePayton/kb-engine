@@ -54,6 +54,8 @@ curl --location 'http://localhost:8080/api/v1/knowledge-chat/ceb9babb-1e30-41d7-
 **响应格式**:
 服务器端事件流（Server-Sent Events，Content-Type: text/event-stream）
 
+`response_type=thinking` 为模型的流式思考过程，`response_type=answer` 为最终回答内容。飞书知识引用直接使用标准 Markdown 链接 `[原文档名称](飞书链接)`；其他知识来源继续通过 `knowledge_references` 和原有引用标签返回。
+
 **响应**:
 
 ```
@@ -61,7 +63,10 @@ event: message
 data: {"id":"3475c004-0ada-4306-9d30-d7f5efce50d2","response_type":"references","content":"","done":false,"knowledge_references":[{"id":"c8347bef-...","content":"彗星xxx。","knowledge_id":"a6790b93-...","chunk_index":0,"knowledge_title":"彗星.txt","score":4.04,"match_type":3,"chunk_type":"text","knowledge_filename":"彗星.txt"}]}
 
 event: message
-data: {"id":"3475c004-0ada-4306-9d30-d7f5efce50d2","response_type":"answer","content":"彗尾的形状主要表现为...","done":false,"knowledge_references":null}
+data: {"id":"3475c004-0ada-4306-9d30-d7f5efce50d2","response_type":"thinking","content":"正在检索并核对相关资料...","done":false}
+
+event: message
+data: {"id":"3475c004-0ada-4306-9d30-d7f5efce50d2","response_type":"answer","content":"彗尾的形状主要表现为... [彗星](https://example.feishu.cn/wiki/WikiToken123)","done":false,"knowledge_references":null}
 
 event: message
 data: {"id":"3475c004-0ada-4306-9d30-d7f5efce50d2","response_type":"answer","content":"","done":true,"knowledge_references":null}

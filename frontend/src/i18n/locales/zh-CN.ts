@@ -534,6 +534,7 @@ export default {
       playgroundStepSession: '步骤 1：创建 Session',
       playgroundStepChat: '步骤 2：Agent Chat SSE',
       playgroundFinalAnswer: '提取出的回答',
+      playgroundThinking: '思考过程',
       playgroundEmptyResult: '运行后将在这里显示 Session 响应、SSE 原始输出和提取出的回答。',
       playgroundSuccess: '测试完成（{ms}ms）',
       playgroundStopped: '测试已停止',

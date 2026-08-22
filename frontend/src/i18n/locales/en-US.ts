@@ -5962,6 +5962,7 @@ export default {
       playgroundStepSession: 'Step 1: Create Session',
       playgroundStepChat: 'Step 2: Agent Chat SSE',
       playgroundFinalAnswer: 'Extracted answer',
+      playgroundThinking: 'Thinking process',
       playgroundEmptyResult: 'Run a test to show the session response, raw SSE output, and extracted answer here.',
       playgroundSuccess: 'Test completed ({ms}ms)',
       playgroundStopped: 'Test stopped',

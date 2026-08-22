@@ -1254,6 +1254,12 @@ func (s *DataSourceService) ingestItem(ctx context.Context, ds *types.DataSource
 	for k, v := range item.Metadata {
 		metadata[k] = v
 	}
+	// Keep the original external document URL alongside the ingested content.
+	// Feishu/Lark connectors fetch the document body before ingestion, so the
+	// knowledge source itself is a file and cannot otherwise retain this link.
+	if sourceURL := strings.TrimSpace(item.URL); sourceURL != "" {
+		metadata["source_url"] = sourceURL
+	}
 
 	// Check if a knowledge item with this external_id already exists → delete it first (update)
 	isUpdate := false

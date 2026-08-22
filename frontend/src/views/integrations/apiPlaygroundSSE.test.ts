@@ -75,6 +75,7 @@ test('does not treat another event type done marker as stream completion', async
 
   assert.equal(result.status, 'success')
   assert.equal(result.answer, 'answer')
+  assert.equal(result.thinking, 'thought')
 })
 
 test('ignores frames after a terminal event', async () => {

@@ -32,6 +32,47 @@ func TestRegistryChunkAliasIsStableAndExpandsCanonicalCitation(t *testing.T) {
 	)
 }
 
+func TestFeishuSearchResultExpandsCitationAsMarkdownLink(t *testing.T) {
+	registry := newSourceRegistry()
+	registry.RegisterSearchResults([]*types.SearchResult{{
+		ID:               "chunk-1",
+		KnowledgeTitle:   "联合指挥[预案].md",
+		KnowledgeChannel: types.ChannelFeishu,
+		Metadata: map[string]string{
+			"source_url": "https://example.feishu.cn/wiki/WikiToken123",
+		},
+	}})
+
+	require.Equal(t,
+		`参考[联合指挥\[预案\].md](https://example.feishu.cn/wiki/WikiToken123)`,
+		registry.ExpandText(`参考<ref id="c1"/>`),
+	)
+}
+
+func TestLegacyFeishuSearchResultBuildsWikiLinkFromNodeToken(t *testing.T) {
+	registry := newSourceRegistry()
+	registry.RegisterSearchResults([]*types.SearchResult{{
+		ID:                "chunk-1",
+		KnowledgeFilename: "应急预案.md",
+		KnowledgeChannel:  types.ChannelFeishu,
+		Metadata:          map[string]string{"node_token": "WikiToken123"},
+	}})
+
+	require.Equal(t, `[应急预案.md](https://feishu.cn/wiki/WikiToken123)`, registry.ExpandText(`<ref id="c1"/>`))
+}
+
+func TestNonFeishuSearchResultKeepsCanonicalCitation(t *testing.T) {
+	registry := newSourceRegistry()
+	registry.RegisterSearchResults([]*types.SearchResult{{
+		ID:               "chunk-1",
+		KnowledgeTitle:   "Local.md",
+		KnowledgeChannel: "file",
+		Metadata:         map[string]string{"source_url": "https://example.com/local"},
+	}})
+
+	require.Equal(t, `<kb doc="Local.md" chunk_id="chunk-1" />`, registry.ExpandText(`<ref id="c1"/>`))
+}
+
 func TestRegisterDoesNotTreatModelAliasesAsNewDurableIdentities(t *testing.T) {
 	r := newSourceRegistry()
 	require.Equal(t, "c1", r.RegisterChunk(ChunkReference{ChunkID: "chunk-real"}))

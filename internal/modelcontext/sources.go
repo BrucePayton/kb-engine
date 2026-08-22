@@ -21,6 +21,7 @@ type ChunkReference struct {
 	KnowledgeID     string
 	KnowledgeBaseID string
 	DocumentTitle   string
+	SourceURL       string
 	ChunkIndex      int
 	ChunkType       string
 }
@@ -97,6 +98,9 @@ func mergeChunkReference(dst *ChunkReference, src ChunkReference) {
 	if dst.DocumentTitle == "" {
 		dst.DocumentTitle = src.DocumentTitle
 	}
+	if dst.SourceURL == "" {
+		dst.SourceURL = src.SourceURL
+	}
 	if dst.ChunkIndex == 0 {
 		dst.ChunkIndex = src.ChunkIndex
 	}
@@ -165,10 +169,46 @@ func (r *sourceRegistry) RegisterSearchResults(results []*types.SearchResult) {
 			KnowledgeID:     result.KnowledgeID,
 			KnowledgeBaseID: result.KnowledgeBaseID,
 			DocumentTitle:   firstNonEmpty(result.KnowledgeTitle, result.KnowledgeFilename),
+			SourceURL:       feishuSourceURL(result),
 			ChunkIndex:      result.ChunkIndex,
 			ChunkType:       result.ChunkType,
 		})
 	}
+}
+
+func feishuSourceURL(result *types.SearchResult) string {
+	if result == nil {
+		return ""
+	}
+	channel := strings.ToLower(strings.TrimSpace(result.KnowledgeChannel))
+	switch channel {
+	case types.ChannelFeishu, types.ChannelFeishuDrive,
+		types.ConnectorTypeLark, types.ConnectorTypeLarkDrive:
+	default:
+		return ""
+	}
+	if rawURL := validHTTPURL(result.Metadata["source_url"]); rawURL != "" {
+		return rawURL
+	}
+	// Older Feishu Wiki records predate source_url persistence. node_token is
+	// already stored on those records, so retain link support without a resync.
+	if nodeToken := strings.TrimSpace(result.Metadata["node_token"]); nodeToken != "" {
+		host := "https://feishu.cn"
+		if channel == types.ConnectorTypeLark || channel == types.ConnectorTypeLarkDrive {
+			host = "https://larksuite.com"
+		}
+		return host + "/wiki/" + url.PathEscape(nodeToken)
+	}
+	return ""
+}
+
+func validHTTPURL(rawURL string) string {
+	rawURL = strings.TrimSpace(rawURL)
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return ""
+	}
+	return parsed.String()
 }
 
 func firstNonEmpty(values ...string) string {
