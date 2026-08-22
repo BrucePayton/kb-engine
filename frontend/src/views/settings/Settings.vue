@@ -36,13 +36,13 @@
                         <line x1="2.94" y1="12.5" x2="15.06" y2="12.5" stroke="currentColor" stroke-width="1.2"
                           stroke-linecap="round" />
                       </svg>
-                      <!-- WeKnora Cloud 使用自定义 W 图标 -->
+                      <!-- KB-Engine 使用自定义 KB 图标 -->
                       <svg v-else-if="item.key === 'weknoracloud'" width="17" height="17" viewBox="0 0 18 18"
                         fill="none" xmlns="http://www.w3.org/2000/svg" class="nav-icon">
                         <rect x="1.5" y="1.5" width="15" height="15" rx="3.5" stroke="currentColor" stroke-width="1.2"
                           fill="none" />
-                        <path d="M4.5 5.5L6.5 12.5L9 7.5L11.5 12.5L13.5 5.5" stroke="currentColor" stroke-width="1.3"
-                          stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                        <text x="9" y="11.2" text-anchor="middle" fill="currentColor" font-size="5.2"
+                          font-family="Arial, sans-serif" font-weight="700">KB</text>
                       </svg>
                       <span v-else-if="item.emoji" class="nav-icon nav-icon-emoji">{{ item.emoji }}</span>
                       <t-icon v-else :name="item.icon" class="nav-icon" />
@@ -94,7 +94,7 @@
                     <OllamaSettings />
                   </div>
 
-                  <!-- WeKnora Cloud -->
+                  <!-- KB-Engine cloud configuration -->
                   <div v-if="currentSection === 'weknoracloud'" class="section">
                     <WeKnoraCloudSettings />
                   </div>
@@ -354,7 +354,7 @@ const navItems = computed(() => {
   const all: NavItem[] = [
     { key: 'general', icon: 'setting', label: t('general.title') },
     { key: 'ollama', icon: 'server', label: 'Ollama' },
-    { key: 'weknoracloud', icon: '', label: 'WeKnora Cloud' },
+    { key: 'weknoracloud', icon: '', label: 'KB-Engine' },
     { key: 'models', icon: 'control-platform', label: t('settings.modelManagement') },
     { key: 'websearch', icon: 'search', label: t('settings.webSearchConfig') },
     { key: 'chathistory', icon: 'chat', label: t('chatHistorySettings.title') },
