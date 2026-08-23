@@ -17,6 +17,7 @@ import (
 // streamLLMResult holds accumulated output from a streaming LLM call.
 type streamLLMResult struct {
 	Content          string
+	ModelContent     string // model text before citation handles are expanded
 	ReasoningContent string // accumulated reasoning content, kept separate from answer
 	ToolCalls        []types.LLMToolCall
 	Usage            *types.TokenUsage
@@ -68,6 +69,7 @@ func (e *AgentEngine) streamLLMToEventBus(
 			result.StreamError = chunk.Content
 			continue
 		}
+		modelChunkContent := chunk.Content
 		if chunk.ResponseType == types.ResponseTypeThinking {
 			chunk.Content = thinkingDecoder.Feed(chunk.Content)
 			if chunk.Done {
@@ -89,6 +91,12 @@ func (e *AgentEngine) streamLLMToEventBus(
 				} else {
 					result.Content += chunk.Content
 				}
+			}
+		}
+		if modelChunkContent != "" && chunk.ResponseType != types.ResponseTypeThinking {
+			isExtracted := chunk.Data != nil && chunk.Data["source"] != nil
+			if !isExtracted {
+				result.ModelContent += modelChunkContent
 			}
 		}
 
@@ -357,6 +365,7 @@ func (e *AgentEngine) streamThinkingToEventBus(
 
 	resp := &types.ChatResponse{
 		Content:          fullContent,
+		ModelContent:     agenttools.StripThinkBlocks(llmResult.ModelContent),
 		ReasoningContent: llmResult.ReasoningContent,
 		ToolCalls:        llmResult.ToolCalls,
 		FinishReason:     finishReason,

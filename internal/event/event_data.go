@@ -178,8 +178,9 @@ type AgentToolResultData struct {
 
 // AgentReferencesData represents knowledge references data
 type AgentReferencesData struct {
-	References interface{} `json:"references"` // []*types.SearchResult
-	Iteration  int         `json:"iteration"`
+	References      interface{} `json:"references"` // []*types.SearchResult
+	Iteration       int         `json:"iteration"`
+	AttributionKind string      `json:"attribution_kind,omitempty"`
 }
 
 // MemoryRecalledData carries the long-term memories injected into this turn.

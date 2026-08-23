@@ -62,6 +62,14 @@ func (r *Registry) ProtocolPrompt() string {
 	return r.sources.ProtocolPrompt() + resourceHandleProtocolPrompt
 }
 
+// CitedChunkIDs resolves private citation handles found in model output.
+func (r *Registry) CitedChunkIDs(modelText string) []string {
+	if r == nil || r.sources == nil {
+		return nil
+	}
+	return r.sources.citedChunkIDs(modelText)
+}
+
 // EncodeMessages returns a model-facing copy with every temporary handle
 // encoded in the only safe order.
 func (r *Registry) EncodeMessages(messages []chat.Message) []chat.Message {

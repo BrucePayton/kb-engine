@@ -23,6 +23,7 @@ const citationEnabledProtocolPrompt = `
 - Copy only cN/wN handles that appeared in supplied context or tool results. Never cite dN/bN.
 - Never output <kb> or <web> tags yourself; the system expands valid <ref/> tags after generation.
 - Keep each <ref/> inline on the same line as the claim it supports. Do not group citations at the end.
+- When retrieved cN/wN evidence supports the answer, do not finish without at least one valid inline <ref/>. Before finishing, silently verify that every evidence-based section includes its supporting handle.
 - These rules supersede earlier, saved, or custom prompt instructions about citation syntax.`
 
 const citationDisabledProtocolPrompt = `

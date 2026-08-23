@@ -1407,11 +1407,12 @@ func (t *KnowledgeSearchTool) formatOutput(
 	output := ob.String()
 
 	data := map[string]interface{}{
-		"knowledge_base_ids": kbsToSearch,
-		"results":            formattedResults,
-		"count":              len(formattedResults),
-		"kb_counts":          kbCounts,
-		"display_type":       "search_results",
+		"knowledge_base_ids":           kbsToSearch,
+		"results":                      formattedResults,
+		"count":                        len(formattedResults),
+		"kb_counts":                    kbCounts,
+		"display_type":                 "search_results",
+		InternalKnowledgeReferencesKey: results,
 	}
 
 	if len(queries) > 0 {

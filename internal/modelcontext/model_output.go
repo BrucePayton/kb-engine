@@ -22,6 +22,12 @@ func (r *sourceRegistry) ModelOutput(result *types.ToolResult) string {
 	if result == nil {
 		return ""
 	}
+	// Knowledge tools may carry trusted, request-local retrieval objects in a
+	// private sidecar. Register them before rendering the public result rows so
+	// source URLs never need to enter persisted tool metadata or model context.
+	if refs, ok := result.Data["_knowledge_references"].([]*types.SearchResult); ok {
+		r.RegisterSearchResults(refs)
+	}
 	displayType := stringValue(result.Data, "display_type")
 	if displayType == "web_fetch_results" {
 		return r.modelWebFetchOutput(mapsValue(result.Data["results"]), result.Output)

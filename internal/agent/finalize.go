@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	agenttools "github.com/Tencent/WeKnora/internal/agent/tools"
@@ -19,8 +20,8 @@ func finalAnswerImageRequirement(hasRetrievedImage bool) string {
 		return ""
 	}
 	return `
-5. Retrieved tool results contain Markdown images. Unless the user explicitly requested text-only output or every image is clearly unrelated, the final answer MUST include at least one relevant Markdown image copied verbatim from the tool results. Preserve its complete URL exactly. Use ASCII half-width parentheses exactly as ![alt](url) and never use full-width （ or ）. Place the image immediately after the paragraph it supports. When multiple images support different sections, distribute them across those sections instead of stopping after the first image.
-6. Before finishing, silently verify that the answer contains a Markdown image when requirement 5 applies.`
+6. Retrieved tool results contain Markdown images. Unless the user explicitly requested text-only output or every image is clearly unrelated, the final answer MUST include at least one relevant Markdown image copied verbatim from the tool results. Preserve its complete URL exactly. Use ASCII half-width parentheses exactly as ![alt](url) and never use full-width （ or ）. Place the image immediately after the paragraph it supports. When multiple images support different sections, distribute them across those sections instead of stopping after the first image.
+7. Before finishing, silently verify that the answer contains a Markdown image when requirement 6 applies.`
 }
 
 // streamFinalAnswerToEventBus streams the final answer generation through EventBus
@@ -83,6 +84,7 @@ Requirements:
 2. Organize the answer in a structured format
 3. If information is insufficient, honestly state so
 4. IMPORTANT: Respond in the same language as the user's question
+5. When retrieved source handles support the answer, include valid inline <ref id="cN"/> or <ref id="wN"/> citations and silently verify that none are omitted
 %s
 
 Now generate the final answer:`, query, imageRequirement)
@@ -146,12 +148,22 @@ Now generate the final answer:`, query, imageRequirement)
 
 	// Safety net: strip any residual <think> blocks that may have leaked through
 	fullAnswer := agenttools.StripThinkBlocks(llmResult.Content)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(fullAnswer) == "" {
+		return fmt.Errorf("final answer stream completed without content")
+	}
 	logger.Infof(ctx, "[Agent][FinalAnswer] Final answer generated: %d characters", len(fullAnswer))
 	common.PipelineInfo(ctx, "Agent", "final_answer_done", map[string]interface{}{
 		"session_id": sessionID,
 		"answer_len": len(fullAnswer),
 	})
 	state.FinalAnswer = fullAnswer
+	state.FinalCitationChunkIDs = e.modelContext.CitedChunkIDs(
+		agenttools.StripThinkBlocks(llmResult.ModelContent),
+	)
+	state.ReferencesEligible = true
 	return nil
 }
 
@@ -173,6 +185,8 @@ func (e *AgentEngine) handleMaxIterations(
 			"error": err.Error(),
 		})
 		state.FinalAnswer = "Sorry, I was unable to generate a complete answer."
+		state.FinalCitationChunkIDs = nil
+		state.ReferencesEligible = false
 	}
 	state.IsComplete = true
 }
@@ -181,6 +195,29 @@ func (e *AgentEngine) handleMaxIterations(
 func (e *AgentEngine) emitCompletionEvent(
 	ctx context.Context, state *types.AgentState, sessionID, messageID string, startTime time.Time,
 ) {
+	if state.ReferencesEligible {
+		state.KnowledgeRefs = finalKnowledgeReferences(
+			state.FinalAnswer,
+			state.FinalCitationChunkIDs,
+			state.KnowledgeRefs,
+			e.config.CitationsEnabled(),
+		)
+	} else {
+		state.KnowledgeRefs = nil
+	}
+	if len(state.KnowledgeRefs) > 0 {
+		e.eventBus.Emit(ctx, event.Event{
+			ID:        generateEventID("references"),
+			Type:      event.EventAgentReferences,
+			SessionID: sessionID,
+			Data: event.AgentReferencesData{
+				References:      state.KnowledgeRefs,
+				Iteration:       state.CurrentRound,
+				AttributionKind: knowledgeReferenceAttribution(state.KnowledgeRefs),
+			},
+		})
+	}
+
 	// Convert knowledge refs to interface{} slice for event data
 	knowledgeRefsInterface := make([]interface{}, 0, len(state.KnowledgeRefs))
 	for _, ref := range state.KnowledgeRefs {

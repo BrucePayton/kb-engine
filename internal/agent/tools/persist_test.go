@@ -88,6 +88,21 @@ func TestSanitizeToolResultForClient_omitsOutput(t *testing.T) {
 	}
 }
 
+func TestSanitizeKnowledgeSearchStripsInternalReferences(t *testing.T) {
+	data := map[string]interface{}{
+		"display_type":                 "search_results",
+		"count":                        1,
+		InternalKnowledgeReferencesKey: []*types.SearchResult{{ID: "chunk-1"}},
+	}
+	out := SanitizeToolDataForPersist(ToolKnowledgeSearch, data)
+	if _, exists := out[InternalKnowledgeReferencesKey]; exists {
+		t.Fatal("request-local references must not be streamed or persisted as tool metadata")
+	}
+	if out["count"] != 1 {
+		t.Fatalf("public search summary should remain, got %#v", out)
+	}
+}
+
 func TestSandboxToolPersistenceStripsDuplicatePayloadsAndCompactsHistory(t *testing.T) {
 	rawOutput := strings.Repeat("shell output ", 1000)
 	steps := []types.AgentStep{{

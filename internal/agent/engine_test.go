@@ -585,3 +585,31 @@ func TestStreamFinalAnswerToEventBus_EmitsDoneWhenProviderEndsWithEmptyChunk(t *
 		"a decoder may hold a short suffix until Done to rule out a split model handle")
 	assert.Equal(t, "final answer", state.FinalAnswer)
 }
+
+func TestStreamFinalAnswerToEventBus_RejectsEmptyAnswer(t *testing.T) {
+	mock := &mockChat{responses: []mockResponse{{chunks: []types.StreamResponse{
+		{ResponseType: types.ResponseTypeAnswer, Done: true, FinishReason: "stop"},
+	}}}}
+	engine := newTestEngine(t, mock)
+	state := &types.AgentState{}
+
+	err := engine.streamFinalAnswerToEventBus(context.Background(), "test query", state, "sess-1")
+
+	require.Error(t, err)
+	require.False(t, state.ReferencesEligible)
+}
+
+func TestStreamFinalAnswerToEventBus_RejectsCancelledPartialAnswer(t *testing.T) {
+	mock := &mockChat{responses: []mockResponse{{chunks: []types.StreamResponse{
+		{ResponseType: types.ResponseTypeAnswer, Content: "partial answer", Done: true},
+	}}}}
+	engine := newTestEngine(t, mock)
+	state := &types.AgentState{}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := engine.streamFinalAnswerToEventBus(ctx, "test query", state, "sess-1")
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.False(t, state.ReferencesEligible)
+}

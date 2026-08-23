@@ -26,6 +26,8 @@ type ChunkReference struct {
 	ChunkType       string
 }
 
+var documentNodeTokenRE = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+
 // webMeta is the per-web-page metadata stored next to the raw URL.
 type webMeta struct {
 	title string
@@ -86,6 +88,32 @@ func (r *sourceRegistry) RegisterChunk(ref ChunkReference) string {
 		return knownHandle(r.chunks, ref.ChunkID)
 	}
 	return r.chunks.register(ref.ChunkID, ref.ChunkID, ref, mergeChunkReference)
+}
+
+// citedChunkIDs resolves model citation handles to durable chunk IDs in
+// first-appearance order. Unknown and repeated handles are ignored.
+func (r *sourceRegistry) citedChunkIDs(text string) []string {
+	if r == nil || text == "" {
+		return nil
+	}
+	result := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, match := range refTagRE.FindAllStringSubmatch(text, -1) {
+		if len(match) != 2 {
+			continue
+		}
+		handle := strings.ToLower(match[1])
+		chunkID, _, ok := r.chunks.resolve(handle)
+		if !ok {
+			continue
+		}
+		if _, exists := seen[chunkID]; exists {
+			continue
+		}
+		seen[chunkID] = struct{}{}
+		result = append(result, chunkID)
+	}
+	return result
 }
 
 func mergeChunkReference(dst *ChunkReference, src ChunkReference) {
@@ -169,14 +197,16 @@ func (r *sourceRegistry) RegisterSearchResults(results []*types.SearchResult) {
 			KnowledgeID:     result.KnowledgeID,
 			KnowledgeBaseID: result.KnowledgeBaseID,
 			DocumentTitle:   firstNonEmpty(result.KnowledgeTitle, result.KnowledgeFilename),
-			SourceURL:       feishuSourceURL(result),
+			SourceURL:       SourceURLForSearchResult(result),
 			ChunkIndex:      result.ChunkIndex,
 			ChunkType:       result.ChunkType,
 		})
 	}
 }
 
-func feishuSourceURL(result *types.SearchResult) string {
+// SourceURLForSearchResult returns a trusted original-document URL for a
+// supported connector result. Arbitrary model-generated URLs are never used.
+func SourceURLForSearchResult(result *types.SearchResult) string {
 	if result == nil {
 		return ""
 	}
@@ -192,12 +222,12 @@ func feishuSourceURL(result *types.SearchResult) string {
 	}
 	// Older Feishu Wiki records predate source_url persistence. node_token is
 	// already stored on those records, so retain link support without a resync.
-	if nodeToken := strings.TrimSpace(result.Metadata["node_token"]); nodeToken != "" {
+	if nodeToken := strings.TrimSpace(result.Metadata["node_token"]); documentNodeTokenRE.MatchString(nodeToken) {
 		host := "https://feishu.cn"
 		if channel == types.ConnectorTypeLark || channel == types.ConnectorTypeLarkDrive {
 			host = "https://larksuite.com"
 		}
-		return host + "/wiki/" + url.PathEscape(nodeToken)
+		return host + "/wiki/" + nodeToken
 	}
 	return ""
 }
@@ -205,10 +235,25 @@ func feishuSourceURL(result *types.SearchResult) string {
 func validHTTPURL(rawURL string) string {
 	rawURL = strings.TrimSpace(rawURL)
 	parsed, err := url.Parse(rawURL)
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil ||
+		parsed.RawQuery != "" || parsed.Fragment != "" ||
+		(parsed.Port() != "" && parsed.Port() != "443") {
+		return ""
+	}
+	host := strings.ToLower(parsed.Hostname())
+	if !trustedDocumentHost(host) || !strings.HasPrefix(parsed.EscapedPath(), "/wiki/") &&
+		!strings.HasPrefix(parsed.EscapedPath(), "/docx/") &&
+		!strings.HasPrefix(parsed.EscapedPath(), "/docs/") &&
+		!strings.HasPrefix(parsed.EscapedPath(), "/file/") &&
+		!strings.HasPrefix(parsed.EscapedPath(), "/drive/") {
 		return ""
 	}
 	return parsed.String()
+}
+
+func trustedDocumentHost(host string) bool {
+	return host == "feishu.cn" || strings.HasSuffix(host, ".feishu.cn") ||
+		host == "larksuite.com" || strings.HasSuffix(host, ".larksuite.com")
 }
 
 func firstNonEmpty(values ...string) string {

@@ -49,6 +49,64 @@ func TestFeishuSearchResultExpandsCitationAsMarkdownLink(t *testing.T) {
 	)
 }
 
+func TestSourceURLRejectsUntrustedOrDecoratedDocumentLinks(t *testing.T) {
+	for _, rawURL := range []string{
+		"http://example.feishu.cn/wiki/Token",
+		"https://evil.example/wiki/Token",
+		"https://example.feishu.cn/wiki/Token?tracking=1",
+		"https://user@example.feishu.cn/wiki/Token",
+		"https://example.feishu.cn/unsupported/Token",
+	} {
+		result := &types.SearchResult{
+			KnowledgeChannel: types.ChannelFeishu,
+			Metadata:         map[string]string{"source_url": rawURL},
+		}
+		require.Empty(t, SourceURLForSearchResult(result), rawURL)
+	}
+}
+
+func TestSourceURLRejectsInvalidLegacyNodeToken(t *testing.T) {
+	result := &types.SearchResult{
+		KnowledgeChannel: types.ChannelFeishu,
+		Metadata:         map[string]string{"node_token": "../not-a-token"},
+	}
+	require.Empty(t, SourceURLForSearchResult(result))
+}
+
+func TestAgentKnowledgeToolResultCarriesSourceURLIntoCitation(t *testing.T) {
+	registry := newSourceRegistry()
+	registry.ModelOutput(&types.ToolResult{
+		Success: true,
+		Data: map[string]interface{}{
+			"display_type": "search_results",
+			"_knowledge_references": []*types.SearchResult{{
+				ID:                "chunk-1",
+				Content:           "supporting content",
+				KnowledgeID:       "doc-1",
+				KnowledgeBaseID:   "kb-1",
+				KnowledgeTitle:    "Plan.md",
+				KnowledgeFilename: "Plan.md",
+				KnowledgeChannel:  types.ChannelFeishu,
+				Metadata: map[string]string{
+					"source_url": "https://example.feishu.cn/wiki/PlanToken",
+				},
+			}},
+			"results": []map[string]interface{}{{
+				"chunk_id":          "chunk-1",
+				"content":           "supporting content",
+				"knowledge_id":      "doc-1",
+				"knowledge_base_id": "kb-1",
+				"knowledge_title":   "Plan.md",
+			}},
+		},
+	})
+
+	require.Equal(t,
+		`[Plan.md](https://example.feishu.cn/wiki/PlanToken)`,
+		registry.ExpandText(`<ref id="c1"/>`),
+	)
+}
+
 func TestLegacyFeishuSearchResultBuildsWikiLinkFromNodeToken(t *testing.T) {
 	registry := newSourceRegistry()
 	registry.RegisterSearchResults([]*types.SearchResult{{
@@ -90,6 +148,16 @@ func TestRegisterDoesNotTreatModelAliasesAsNewDurableIdentities(t *testing.T) {
 	require.Equal(t, 1, r.docs.size())
 	require.Equal(t, 1, r.kbs.size())
 	require.Equal(t, 1, r.webs.size())
+}
+
+func TestCitedChunkIDsPreservesFirstAppearanceOrder(t *testing.T) {
+	registry := NewRegistry(true)
+	registry.RegisterChunk(ChunkReference{ChunkID: "chunk-1"})
+	registry.RegisterChunk(ChunkReference{ChunkID: "chunk-2"})
+
+	require.Equal(t, []string{"chunk-2", "chunk-1"}, registry.CitedChunkIDs(
+		`second <ref id="c2"/> first <ref id="c1"/> repeated <ref id="c2"/> unknown <ref id="c99"/>`,
+	))
 }
 
 func TestRegistrySuppressesSourceCitationsWhenDisabled(t *testing.T) {

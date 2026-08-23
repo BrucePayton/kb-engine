@@ -419,7 +419,8 @@ func (h *AgentStreamHandler) handleReferences(ctx context.Context, evt event.Eve
 		Done:      false,
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
-			"references": types.References(h.knowledgeRefs),
+			"references":       types.References(h.knowledgeRefs),
+			"attribution_kind": data.AttributionKind,
 		},
 	}); err != nil {
 		logger.GetLogger(h.ctx).Error("Append references event to stream failed", "error", err)

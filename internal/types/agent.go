@@ -251,11 +251,13 @@ func (s *AgentStep) GetObservations() []string {
 
 // AgentState tracks the execution state of an agent across iterations
 type AgentState struct {
-	CurrentRound  int             `json:"current_round"`  // Current round number
-	RoundSteps    []AgentStep     `json:"round_steps"`    // All steps taken so far in the current round
-	IsComplete    bool            `json:"is_complete"`    // Whether agent has finished
-	FinalAnswer   string          `json:"final_answer"`   // The final answer to the query
-	KnowledgeRefs []*SearchResult `json:"knowledge_refs"` // Collected knowledge references
+	CurrentRound          int             `json:"current_round"`  // Current round number
+	RoundSteps            []AgentStep     `json:"round_steps"`    // All steps taken so far in the current round
+	IsComplete            bool            `json:"is_complete"`    // Whether agent has finished
+	FinalAnswer           string          `json:"final_answer"`   // The final answer to the query
+	KnowledgeRefs         []*SearchResult `json:"knowledge_refs"` // Collected knowledge references
+	FinalCitationChunkIDs []string        `json:"-"`              // Exact chunks cited by the final answer
+	ReferencesEligible    bool            `json:"-"`              // Final business answer completed successfully
 }
 
 // FunctionDefinition represents a function definition for LLM function calling

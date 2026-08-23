@@ -14,8 +14,24 @@ var persistStripFields = map[string][]string{
 }
 
 var persistStripFieldsByTool = map[string][]string{
+	ToolKnowledgeSearch: {InternalKnowledgeReferencesKey},
 	ToolShellExec:       {"stdout", "stderr", "content", "content_base64"},
 	ToolReadSandboxFile: {"stdout", "stderr", "content", "content_base64"},
+}
+
+// InternalKnowledgeReferencesKey carries trusted retrieval objects from the
+// knowledge tool to the request-local Agent state. It is intentionally removed
+// from streamed and persisted tool metadata by persistStripFieldsByTool.
+const InternalKnowledgeReferencesKey = "_knowledge_references"
+
+// KnowledgeReferencesFromResult returns request-local retrieval references.
+// Callers must treat the returned slice as immutable.
+func KnowledgeReferencesFromResult(result *types.ToolResult) []*types.SearchResult {
+	if result == nil || !result.Success || result.Data == nil {
+		return nil
+	}
+	refs, _ := result.Data[InternalKnowledgeReferencesKey].([]*types.SearchResult)
+	return refs
 }
 
 const historicalSandboxOutputChars = 4 * 1024

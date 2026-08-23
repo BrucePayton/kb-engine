@@ -577,6 +577,8 @@ func (e *AgentEngine) runReActIteration(
 			logger.Warnf(ctx, "[Agent][Round-%d] Detected stuck loop: same content repeated %d times (finish=%s), stopping",
 				round, *consecutiveSameContent+1, response.FinishReason)
 			state.FinalAnswer = response.Content
+			state.FinalCitationChunkIDs = e.modelContext.CitedChunkIDs(response.ModelContent)
+			state.ReferencesEligible = true
 			state.IsComplete = true
 			return iterOutcomeBreak, nil
 		}
@@ -639,6 +641,8 @@ func (e *AgentEngine) runReActIteration(
 			return iterOutcomeBreak, nil
 		}
 		state.FinalAnswer = verdict.finalAnswer
+		state.FinalCitationChunkIDs = e.modelContext.CitedChunkIDs(response.ModelContent)
+		state.ReferencesEligible = true
 		state.IsComplete = true
 		state.RoundSteps = append(state.RoundSteps, verdict.step)
 		return iterOutcomeBreak, nil
@@ -658,6 +662,7 @@ func (e *AgentEngine) runReActIteration(
 	// 3. Act: Execute tool calls
 	e.executeToolCalls(ctx, response, &step, state.CurrentRound, sessionID, assistantMessageID)
 	toolCallCount = len(step.ToolCalls)
+	collectStepKnowledgeReferences(state, step)
 
 	// 4. Observe: Add tool results to messages and write to context
 	state.RoundSteps = append(state.RoundSteps, step)
