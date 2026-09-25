@@ -28,7 +28,7 @@ func TestCollectStepKnowledgeReferencesDeduplicatesTrustedResults(t *testing.T) 
 	first := knowledgeRef("chunk-1")
 	state := &types.AgentState{}
 	step := types.AgentStep{ToolCalls: []types.ToolCall{{
-		Name: agenttools.ToolKnowledgeSearch,
+		Name: agenttools.ToolSearchKnowledge,
 		Result: &types.ToolResult{Success: true, Data: map[string]interface{}{
 			agenttools.InternalKnowledgeReferencesKey: []*types.SearchResult{first, first},
 		}},

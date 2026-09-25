@@ -6,7 +6,6 @@ import (
 	"maps"
 	"slices"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/Tencent/WeKnora/internal/logger"
 	"github.com/Tencent/WeKnora/internal/types"
@@ -562,7 +561,13 @@ func (w *weaviateRepository) VectorRetrieve(ctx context.Context,
 
 	where := w.getBaseFilter(params)
 	limit := params.TopK
-	scoreThreshold := float32(params.Threshold)
+	// Weaviate's certainty is (1 + cos) / 2; callers pass a cosine
+	// similarity threshold, the scale every other engine uses. A zero
+	// threshold means no filtering, so it stays 0 rather than becoming 0.5.
+	var scoreThreshold float32
+	if params.Threshold > 0 {
+		scoreThreshold = float32((1 + params.Threshold) / 2)
+	}
 	fields := getEmbeddingFields()
 	result, err := w.client.GraphQL().Get().WithClassName(collectionName).
 		WithWhere(where).
@@ -929,7 +934,9 @@ func parseGraphQLResponse(items []interface{}, collectionName string, matchType 
 			if matchType == types.MatchTypeKeywords {
 				score = 1.0
 			} else {
-				score = s
+				// certainty = (1 + cos) / 2; report cosine similarity so
+				// scores compare with the other engines and thresholds.
+				score = 2*s - 1
 			}
 		}
 
@@ -1034,31 +1041,4 @@ func fromWeaviateVectorEmbedding(id string,
 		Score:           embedding.Score,
 		MatchType:       matchType,
 	}
-}
-
-// tokenizeQuery splits a query string into tokens for OR-based full-text search.
-// It uses jieba for professional Chinese word segmentation.
-func tokenizeQuery(query string) []string {
-	query = strings.TrimSpace(query)
-	if query == "" {
-		return nil
-	}
-
-	// Use jieba for segmentation (search mode for better recall)
-	words := types.Jieba.CutForSearch(query, true)
-
-	// Filter and deduplicate
-	seen := make(map[string]bool)
-	result := make([]string, 0, len(words))
-	for _, word := range words {
-		word = strings.TrimSpace(strings.ToLower(word))
-		// Skip empty, single-char, and already seen words
-		if utf8.RuneCountInString(word) < 2 || seen[word] {
-			continue
-		}
-		seen[word] = true
-		result = append(result, word)
-	}
-
-	return result
 }
