@@ -68,6 +68,9 @@ function resolveVueOfficePptxEntry(): string {
 }
 
 export default defineConfig({
+  // Keep Less imports in-process: worker imports can time out while Docker
+  // is compiling the backend and document parser on the same host.
+  css: { preprocessorMaxWorkers: 0 },
   define: {
     __FRONTEND_VERSION__: JSON.stringify(FRONTEND_VERSION),
     __FRONTEND_COMMIT__: JSON.stringify(FRONTEND_COMMIT),
