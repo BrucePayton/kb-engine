@@ -39,6 +39,9 @@ from docx.image.exceptions import (
     UnexpectedEndOfFileError,
     UnrecognizedImageError,
 )
+from docx.oxml.ns import qn
+from docx.table import Table
+from docx.text.run import Run
 from PIL import Image
 
 from docreader.config import CONFIG
@@ -47,6 +50,131 @@ from docreader.parser.base_parser import BaseParser
 from docreader.utils import endecode
 
 logger = logging.getLogger(__name__)
+
+_W_P = qn("w:p")
+_W_TBL = qn("w:tbl")
+_W_R = qn("w:r")
+_W_SDT = qn("w:sdt")
+_W_SDT_PR = qn("w:sdtPr")
+_W_SDT_CONTENT = qn("w:sdtContent")
+_W_CUSTOM_XML = qn("w:customXml")
+
+# Inline wrappers whose runs Word shows as part of the paragraph. python-docx's
+# Paragraph.text reads only w:r and w:hyperlink children, so the text of a
+# tracked insertion (w:ins) or move destination (w:moveTo), a smart tag,
+# custom XML markup or a simple field was dropped, and that of an inline
+# content control (w:sdt, read through _sdt_content). Deletions (w:del,
+# w:moveFrom) hold their text in w:delText, not w:t, and stay out, which is
+# the document as it reads with changes accepted.
+_INLINE_TEXT_CONTAINERS = frozenset(
+    qn(tag)
+    for tag in (
+        "w:hyperlink",
+        "w:ins",
+        "w:moveTo",
+        "w:smartTag",
+        "w:customXml",
+        "w:fldSimple",
+    )
+)
+
+
+def _sdt_content(sdt: Any) -> Optional[Any]:
+    """The w:sdtContent of a content control that holds document text, or None.
+
+    A control still showing its placeholder ("Click or tap here to enter
+    text.") holds none, and a table of contents repeats the headings with
+    their page numbers, so both are left out as before.
+    """
+    props = sdt.find(_W_SDT_PR)
+    if props is not None:
+        if props.find(qn("w:showingPlcHdr")) is not None:
+            return None
+        gallery = props.find(f"{qn('w:docPartObj')}/{qn('w:docPartGallery')}")
+        if gallery is not None and gallery.get(qn("w:val")) == "Table of Contents":
+            return None
+    return sdt.find(_W_SDT_CONTENT)
+
+
+def _paragraph_text(p_element: Any) -> str:
+    """The text of a w:p as Word shows it, wrapped runs included."""
+    parts: List[str] = []
+
+    def walk(parent: Any) -> None:
+        for child in parent:
+            if child.tag == _W_R:
+                parts.append(Run(child, None).text)
+            elif child.tag == _W_SDT:
+                content = _sdt_content(child)
+                if content is not None:
+                    walk(content)
+            elif child.tag in _INLINE_TEXT_CONTAINERS:
+                walk(child)
+
+    walk(p_element)
+    return "".join(parts)
+
+
+def _block_children(container: Any):
+    """Yield the paragraphs and tables of a body or cell in document order.
+
+    A block content control (w:sdt) and block custom XML hold paragraphs and
+    tables of their own, which Word shows in place; they are opened instead of
+    skipped. Yields ``(element, direct)``, where ``direct`` is False for an
+    element found inside one of them.
+    """
+    for child in container:
+        if child.tag in (_W_P, _W_TBL):
+            yield child, True
+        elif child.tag == _W_SDT:
+            content = _sdt_content(child)
+            if content is not None:
+                for element, _ in _block_children(content):
+                    yield element, False
+        elif child.tag == _W_CUSTOM_XML:
+            for element, _ in _block_children(child):
+                yield element, False
+
+
+def _cell_text(cell: Any) -> str:
+    """A table cell's paragraph text, content controls and insertions included."""
+    return "\n".join(
+        _paragraph_text(element)
+        for element, _ in _block_children(cell._tc)
+        if element.tag == _W_P
+    )
+
+
+def _gfm_cell_text(text: Optional[str]) -> str:
+    """Collapse whitespace and escape pipes so a cell stays one GFM column."""
+    return re.sub(r"\s+", " ", text or "").strip().replace("|", "\\|")
+
+
+def table_to_gfm_markdown(table: Any) -> str:
+    """Render a python-docx Table as GFM Markdown.
+
+    ``row.cells`` already expands merged regions to one entry per grid slot
+    (repeating the same Cell object). Emitting every slot keeps column
+    alignment; comparing cell text would collapse adjacent equal/empty cells.
+    """
+    rows: List[List[str]] = []
+    for row in table.rows:
+        cells = [_gfm_cell_text(_cell_text(cell)) for cell in row.cells]
+        if cells:
+            rows.append(cells)
+    if not rows:
+        return ""
+    width = max(len(row) for row in rows)
+    if width == 0:
+        return ""
+    padded = [row + [""] * (width - len(row)) for row in rows]
+    lines = [
+        "| " + " | ".join(padded[0]) + " |",
+        "| " + " | ".join("---" for _ in padded[0]) + " |",
+    ]
+    for row in padded[1:]:
+        lines.append("| " + " | ".join(row) + " |")
+    return "\n".join(lines)
 
 
 class ImageData:
@@ -142,7 +270,7 @@ class DocxParser(BaseParser):
                 enable_multimodal=True,
                 upload_file=_inline_upload,
             )
-            all_lines, tables = docx_processor(
+            all_lines, ordered_text = docx_processor(
                 binary=content,
                 max_workers=max_workers,
                 to_page=self.max_pages,
@@ -150,7 +278,7 @@ class DocxParser(BaseParser):
             processing_time = time.time() - start_time
             logger.info(
                 f"Docx processing completed in {processing_time:.2f}s, "
-                f"extracted {len(all_lines)} sections and {len(tables)} tables"
+                f"extracted {len(all_lines)} sections"
             )
 
             logger.info("Processing document sections")
@@ -187,7 +315,11 @@ class DocxParser(BaseParser):
                 f"Section processing completed in {section_processing_time:.2f}s"
             )
             logger.info("Combining all text parts")
-            text = "\n\n".join([part for part in text_parts if part])
+            # Prefer body-order markdown (paragraphs interleaved with tables).
+            # Fall back to page-section text if composition produced nothing.
+            text = (ordered_text or "").strip()
+            if not text:
+                text = "\n\n".join([part for part in text_parts if part])
 
             # Check if the generated text is empty
             if not text:
@@ -481,7 +613,7 @@ class Docx:
         from_page: int = 0,
         to_page: int = 100000,
         max_workers: Optional[int] = None,
-    ) -> Tuple[List[LineData], List[Any]]:
+    ) -> Tuple[List[LineData], str]:
         """
         Process DOCX document, supporting concurrent processing of each page
 
@@ -492,7 +624,8 @@ class Docx:
             max_workers: Maximum number of workers, default to None (system decides)
 
         Returns:
-            tuple: (List of LineData objects with document content, List of tables)
+            tuple: (List of LineData objects with document content,
+            body-order markdown with tables interleaved)
         """
         logger.info("Processing DOCX document")
 
@@ -503,7 +636,7 @@ class Docx:
         # Load document
         self.doc = self._load_document(binary)
         if not self.doc:
-            return [], []
+            return [], ""
 
         # Identify page structure
         self.para_page_mapping = self._identify_page_paragraph_mapping(to_page)
@@ -517,7 +650,7 @@ class Docx:
         )
         if not pages_to_process:
             logger.warning("No pages to process after applying page limits!")
-            return [], []
+            return [], ""
 
         # Initialize shared resources
         self._init_shared_resources()
@@ -531,17 +664,17 @@ class Docx:
             max_workers,
         )
 
-        # Process tables
-        tbls = self._process_tables()
+        ordered_text = self._compose_ordered_markdown(pages_to_process)
 
         # Clean up document resources
         self.doc = None
 
         logger.info(
             f"Document processing complete, "
-            f"extracted {len(self.all_lines)} text sections and {len(tbls)} tables"
+            f"extracted {len(self.all_lines)} text sections, "
+            f"{len(ordered_text)} characters of body-order markdown"
         )
-        return self.all_lines, tbls
+        return self.all_lines, ordered_text
 
     def _load_document(self, binary):
         """Load document
@@ -1027,60 +1160,49 @@ class Docx:
             except Exception as e:
                 logger.error(f"Failed to remove temporary file: {str(e)}")
 
-    def _process_tables(self):
-        """Process tables in the document
+    def _compose_ordered_markdown(self, pages_to_process: List[int]) -> str:
+        """Walk body paragraphs and tables in document order and emit GFM.
 
-        Returns:
-            list: List of tables
+        Paragraph processing is page-limited; tables are included only when they
+        sit within that same paragraph range so max_pages does not leak later
+        tables into the parsed text.
         """
-        tbls = []
-        table_count = len(self.doc.tables)
-        if table_count > 0:
-            logger.info(f"Processing {table_count} tables")
-            for tb_idx, tb in enumerate(self.doc.tables):
-                if tb_idx % 10 == 0:  # Log only every 10 tables to reduce log volume
-                    logger.info(f"Processing table {tb_idx + 1}/{table_count}")
+        allowed = set()
+        for page in pages_to_process:
+            allowed.update(self.para_page_mapping.get(page, []))
+        min_allowed = min(allowed) if allowed else 0
+        max_allowed = max(allowed) if allowed else -1
 
-                # Optimize: Check if table is empty
-                if len(tb.rows) == 0 or all(len(r.cells) == 0 for r in tb.rows):
-                    logger.info(f"Skipping empty table {tb_idx + 1}")
-                    continue
+        parts: List[str] = []
+        # Counts the body's own paragraphs, the ones the page mapping indexes.
+        para_i = 0
 
-                table_html = self._convert_table_to_html(tb)
-                # Still using tuple format for tables as they are handled differently
-                tbls.append(((None, table_html), ""))
+        def in_page_range() -> bool:
+            return not allowed or min_allowed <= para_i <= max_allowed + 1
 
-        return tbls
+        for child, direct in _block_children(self.doc.element.body):
+            if child.tag == _W_P:
+                # Paragraphs inside a content control are not in the page
+                # mapping; they follow the range of the paragraphs around them.
+                include = para_i in allowed if direct else in_page_range()
+                if direct:
+                    para_i += 1
+                if include:
+                    text = _paragraph_text(child).strip()
+                    if text:
+                        parts.append(text)
+                continue
+            if in_page_range():
+                table = Table(child, self.doc._body)
+                if not (
+                    len(table.rows) == 0
+                    or all(len(row.cells) == 0 for row in table.rows)
+                ):
+                    markdown = table_to_gfm_markdown(table)
+                    if markdown:
+                        parts.append(markdown)
 
-    def _convert_table_to_html(self, table):
-        """Convert table to HTML
-
-        Args:
-            table: Table object
-
-        Returns:
-            str: HTML formatted table
-        """
-        html = "<table>"
-        for r in table.rows:
-            html += "<tr>"
-            i = 0
-            while i < len(r.cells):
-                span = 1
-                c = r.cells[i]
-                for j in range(i + 1, len(r.cells)):
-                    if c.text == r.cells[j].text:
-                        span += 1
-                        i = j
-                i += 1
-                html += (
-                    f"<td>{c.text}</td>"
-                    if span == 1
-                    else f"<td colspan='{span}'>{c.text}</td>"
-                )
-            html += "</tr>"
-        html += "</table>"
-        return html
+        return "\n\n".join(parts)
 
     def _safe_concat_images(self, images):
         """Safely concatenate image lists

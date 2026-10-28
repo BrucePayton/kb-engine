@@ -1,4 +1,4 @@
-.PHONY: help build run test clean docker-build-app docker-build-docreader docker-build-frontend docker-build-all docker-run migrate-up migrate-down docker-restart docker-stop start-all stop-all start-ollama stop-ollama build-images build-images-app build-images-docreader build-images-frontend clean-images check-env list-containers pull-images show-platform dev-start dev-stop dev-restart dev-logs dev-status dev-app dev-frontend docs install-swagger build-lite run-lite package-lite prompts-check prompts-publish
+.PHONY: help build run test clean docker-build-app docker-build-docreader docker-build-frontend docker-build-all docker-run migrate-up migrate-down docker-restart docker-stop start-all stop-all start-ollama stop-ollama build-images build-images-app build-images-docreader build-images-frontend clean-images check-env list-containers pull-images show-platform dev-start dev-stop dev-restart dev-logs dev-status dev-app dev-frontend docs install-swagger build-lite run-lite package-lite anydoc-lib build-anydoc
 
 # Show help
 help:
@@ -8,6 +8,8 @@ help:
 	@echo "  build             构建应用"
 	@echo "  run               运行应用"
 	@echo "  test              运行测试"
+	@echo "  anydoc-lib        构建 anydoc 静态库（需要 Rust 工具链）"
+	@echo "  build-anydoc      构建带 anydoc 解析引擎的应用"
 	@echo "  clean             清理构建文件"
 	@echo ""
 	@echo "Docker 命令:"
@@ -42,10 +44,13 @@ help:
 	@echo "  docs              生成 Swagger API 文档"
 	@echo "  install-swagger   安装 swag 工具"
 	@echo ""
+	@echo "模型厂商目录:"
+	@echo "  model-catalog-check   校验厂商目录（不变量 + 新旧行为对照 + 厂商测试）"
+	@echo "  model-catalog-diff    对比 models.dev，输出模型元数据差异报告（需人工审阅）"
+	@echo "                        可选: make model-catalog-diff VENDOR=deepseek"
+	@echo ""
 	@echo "环境检查:"
 	@echo "  check-env         检查环境配置"
-	@echo "  prompts-check     校验 Langfuse 静态提示词注册表"
-	@echo "  prompts-publish   同步注册的静态提示词到 Langfuse"
 	@echo "  list-containers   列出运行中的容器"
 	@echo "  pull-images       拉取最新镜像"
 	@echo "  show-platform     显示当前构建平台"
@@ -58,6 +63,7 @@ help:
 	@echo "  dev-logs          查看开发环境日志"
 	@echo "  dev-status        查看开发环境状态"
 	@echo "  dev-app           启动后端应用（本地运行，需先运行 dev-start）"
+	@echo "                    已 make anydoc-lib 时自动链接 anydoc 引擎"
 	@echo "  dev-frontend      启动前端（本地运行，需先运行 dev-start）"
 	@echo ""
 	@echo "Lite 模式（零外部依赖）:"
@@ -89,11 +95,14 @@ endif
 build:
 	go build -o $(BINARY_NAME) $(MAIN_PATH)
 
-prompts-check:
-	go test ./internal/prompts
+# Build the anydoc static archive (Rust) that the `anydoc` build tag links.
+# Override the platform with TARGET=<rust-target-triple>.
+anydoc-lib:
+	./scripts/build-anydoc-lib.sh
 
-prompts-publish:
-	go run ./cmd/sync_prompts --all
+# Build the application with the in-process anydoc parser engine linked in.
+build-anydoc: anydoc-lib
+	go build -tags anydoc -o $(BINARY_NAME) $(MAIN_PATH)
 
 # Run the application
 run: build
@@ -101,7 +110,24 @@ run: build
 
 # Run tests
 test:
+	bash scripts/docker-entrypoint_test.sh
 	go test -v ./...
+
+# Generate reviewed metadata + protocol overrides, then verify every model.
+.PHONY: model-catalog-generate model-catalog-check
+model-catalog-generate:
+	python3 scripts/model-catalog/generate.py
+
+model-catalog-check:
+	python3 scripts/model-catalog/generate.py --check
+	go test ./internal/models/...
+
+# Vendor catalog: report where our model metadata differs from models.dev.
+# Development aid only — nothing is fetched at runtime and nothing is written
+# automatically; review each line against the vendor's own documentation.
+.PHONY: model-catalog-diff
+model-catalog-diff:
+	@python3 scripts/model_catalog_diff.py $(if $(VENDOR),--vendor $(VENDOR),)
 
 # Clean build artifacts
 clean:
@@ -114,21 +140,23 @@ docker-build-app:
 	@eval $$(./scripts/get_version.sh env); \
 	./scripts/get_version.sh info; \
 	docker build --platform $(PLATFORM) \
-		--build-arg APK_MIRROR_ARG="$${APK_MIRROR_ARG:-}" \
 		--build-arg VERSION_ARG="$$VERSION" \
 		--build-arg COMMIT_ID_ARG="$$COMMIT_ID" \
 		--build-arg BUILD_TIME_ARG="$$BUILD_TIME" \
 		--build-arg GO_VERSION_ARG="$$GO_VERSION" \
+		--build-arg WITH_ANYDOC=$${WITH_ANYDOC:-1} \
 		-f docker/Dockerfile.app -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
 
 # Build docreader Docker image
 docker-build-docreader:
 	docker build --platform $(PLATFORM) -f docker/Dockerfile.docreader -t wechatopenai/weknora-docreader:latest .
 
-# Build frontend Docker image
+# Build frontend Docker image (multi-stage: npm runs inside the builder stage)
 docker-build-frontend:
-	./scripts/build_frontend_dist.sh
-	docker build --platform $(PLATFORM) -f frontend/Dockerfile -t wechatopenai/weknora-ui:latest frontend/
+	@eval $$(./scripts/get_version.sh env); \
+	docker build --platform $(PLATFORM) \
+		--build-arg VITE_FRONTEND_COMMIT="$$COMMIT_ID" \
+		-f frontend/Dockerfile -t wechatopenai/weknora-ui:latest frontend/
 
 # Build all Docker images
 docker-build-all: docker-build-app docker-build-docreader docker-build-frontend
@@ -219,9 +247,18 @@ migrate-goto:
 	./scripts/migrate.sh goto $(version)
 
 # Generate API documentation (Swagger)
+#
+# internal/localsandbox is excluded because cmd/server does not depend on it
+# (its importers are behind the `desktop` build tag). Without the exclude,
+# swag walks into the directory, follows its `const X = core.X` aliases and
+# loads internal/localsandbox/core a second time through go/loader; that
+# second load re-registers every model under its short name without enum
+# values, so definitions lose their package-qualified names and
+# docs/swagger_contract_test.go fails.
 docs:
 	@echo "生成 Swagger API 文档..."
-	swag init -g $(MAIN_PATH)/main.go -o ./docs --parseDependency --parseInternal
+	swag init -g $(MAIN_PATH)/main.go -o ./docs --parseDependency --parseInternal \
+		--exclude ./internal/localsandbox --overridesFile ./docs/swag.overrides
 	@echo "文档已生成到 ./docs 目录"
 	@echo "启动服务后访问 http://localhost:8080/swagger/index.html 查看文档"
 
@@ -243,8 +280,12 @@ deps:
 
 # Build for production
 # google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn for qdrant milvus proto conflict
+# GO_BUILD_TAGS adds optional build tags, e.g. GO_BUILD_TAGS=anydoc to link the
+# in-process office document parser (run `make anydoc-lib` first).
+# When .git is absent (e.g. inside a docker build), fall back to the VERSION
+# file so compose-built images still report the base version.
 build-prod:
-	VERSION=$$(git describe --tags --abbrev=0 2>/dev/null || echo "$${VERSION:-unknown}"); \
+	VERSION=$$(git describe --tags --abbrev=0 2>/dev/null || echo "$${VERSION:-$$(cat VERSION 2>/dev/null || echo unknown)}"); \
 	COMMIT_ID=$${COMMIT_ID:-unknown}; \
 	CGO_ENABLED=1 \
 	CGO_CFLAGS="-Wno-deprecated-declarations" \
@@ -252,7 +293,7 @@ build-prod:
 	BUILD_TIME=$${BUILD_TIME:-unknown}; \
 	GO_VERSION=$${GO_VERSION:-unknown}; \
 	LDFLAGS="-X 'github.com/Tencent/WeKnora/internal/handler.Version=$$VERSION' -X 'github.com/Tencent/WeKnora/internal/handler.Edition=standard' -X 'github.com/Tencent/WeKnora/internal/handler.CommitID=$$COMMIT_ID' -X 'github.com/Tencent/WeKnora/internal/handler.BuildTime=$$BUILD_TIME' -X 'github.com/Tencent/WeKnora/internal/handler.GoVersion=$$GO_VERSION' -X 'google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn'"; \
-	go build -ldflags="-w -s $$LDFLAGS" -o $(BINARY_NAME) $(MAIN_PATH)
+	go build -tags "$(GO_BUILD_TAGS)" -ldflags="-w -s $$LDFLAGS" -o $(BINARY_NAME) $(MAIN_PATH)
 
 # Build Lite version (single binary, SQLite + in-memory queue)
 # 会先构建前端到 web/，再构建 Go 二进制；SKIP_FRONTEND=1 可跳过前端
