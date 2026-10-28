@@ -2158,10 +2158,8 @@ func (s *wikiIngestService) reduceSlugUpdates(
 			if len(additions) > 0 {
 				additionFailed = true
 			}
-			// Don't propagate the LLM error to the named return: it has
-			// already been logged, and the eg.Go caller would otherwise
-			// log it a second time as "reduce failed for slug".
-			err = nil
+			// Preserve the error so the owning documents are retried rather than
+			// marked complete while their page contribution is missing.
 		}
 	}
 
@@ -2190,7 +2188,7 @@ func (s *wikiIngestService) reduceSlugUpdates(
 		return true, affectedType, additionFailed, err
 	}
 
-	return false, "", additionFailed, nil
+	return false, "", additionFailed, err
 }
 
 // mergeChunkRefs unions the chunk IDs currently on the page with the ones

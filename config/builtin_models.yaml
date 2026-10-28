@@ -1,0 +1,29 @@
+# Local deployment: the key is supplied through .env, never stored here.
+builtin_models:
+  - id: builtin-qianwen-token-plan-flash
+    tenant_id: 10000
+    name: qwen3.6-flash
+    type: KnowledgeQA
+    source: remote
+    description: Qianwen Token Plan — knowledge QA, summaries and agent reasoning
+    is_default: true
+    parameters:
+      provider: aliyun
+      base_url: https://token-plan.maas.qianwenaiapi.com/compatible-mode/v1
+      api_key: ${QIANWEN_TOKEN_PLAN_API_KEY}
+      context_window: 1000000
+
+  - id: builtin-ollama-bge-large-zh
+    tenant_id: 10000
+    name: quentinz/bge-large-zh-v1.5:latest
+    type: Embedding
+    source: local
+    description: Local Chinese BGE-large via Ollama, 1024 dimensions
+    is_default: true
+    parameters:
+      provider: ollama
+      base_url: http://host.docker.internal:11434
+      embedding_parameters:
+        dimension: 1024
+        truncate_prompt_tokens: 511
+        supports_dimension_override: false
