@@ -50,6 +50,7 @@ export interface ToolRequirement {
 }
 
 export const TOOL_CAPABILITY_REQUIREMENTS: Record<string, ToolRequirement> = {
+  query_cognitive_paths: { anyOf: ['vector', 'keyword', 'wiki', 'graph', 'faq'] },
   // ---- base / reasoning (no KB dependency) ----
   thinking: {},
   todo_write: {},

@@ -161,3 +161,22 @@ func TestRegisterToolsOffersWikiWritesOnlyForWritableKBs(t *testing.T) {
 		require.Contains(t, names, name)
 	}
 }
+
+func TestRegisterCognitivePathsRequiresKnowledgeScope(t *testing.T) {
+	kb := &types.KnowledgeBase{ID: "kb"}
+	svc := newToolSurfaceService(kb)
+	for _, scoped := range []bool{false, true} {
+		cfg := toolSurfaceConfig(tools.ToolQueryCognitivePaths)
+		if !scoped {
+			cfg.KnowledgeBases = nil
+			cfg.SearchTargets = nil
+		}
+		registry := tools.NewToolRegistry()
+		require.NoError(t, svc.registerTools(t.Context(), registry, cfg, nil, nil, "s"))
+		if scoped {
+			require.Contains(t, registry.ListTools(), tools.ToolQueryCognitivePaths)
+		} else {
+			require.NotContains(t, registry.ListTools(), tools.ToolQueryCognitivePaths)
+		}
+	}
+}

@@ -25,6 +25,7 @@ func TestBuildAgentToolCatalogDescribesEverySelectableTool(t *testing.T) {
 	}
 	// The editor never offered this tool before it read the catalog.
 	require.True(t, selectable[ToolSearchConversations])
+	require.True(t, selectable[ToolQueryCognitivePaths])
 
 	for _, name := range catalog.DefaultTools {
 		require.True(t, selectable[name], "default tool %s must be selectable", name)

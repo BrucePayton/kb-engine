@@ -57,6 +57,7 @@ type ToolRequirement struct {
 // as always available / file-consuming (permissive fallback: unknown MCP
 // tools shouldn't silently break).
 var ToolCapabilityRequirements = map[string]ToolRequirement{
+	ToolQueryCognitivePaths: {AnyOf: []KBCapability{CapVector, CapKeyword, CapWiki, CapGraph, CapFAQ}},
 	// ---- base / reasoning (no KB dependency, no file consumption) ----
 	"thinking":   {},
 	"todo_write": {},

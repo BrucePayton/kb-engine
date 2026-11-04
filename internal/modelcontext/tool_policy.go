@@ -118,6 +118,7 @@ var toolHandlePolicies = map[string]toolHandlePolicy{
 	},
 	// data_analysis exposes the selected document as a fixed table name, so
 	// its SQL never carries a document handle; only knowledge_id is decoded.
+	"query_cognitive_paths": {sourceOutput: true},
 	toolDataAnalysis: {
 		sourceIDKeys: map[string]struct{}{"knowledge_id": {}},
 	},

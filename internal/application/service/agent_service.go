@@ -120,6 +120,7 @@ type agentService struct {
 	messageService        interfaces.MessageService
 	memoryService         interfaces.MemoryService
 	storageResolver       interfaces.StorageBackendResolver
+	cognitivePathRepo     interfaces.CognitivePathRepository
 	toolApprovalGate      approval.MCPApproval
 	customAgentService    interfaces.CustomAgentService
 	operationDispatcher   operations.Dispatcher
@@ -169,6 +170,7 @@ func NewAgentService(
 	messageService interfaces.MessageService,
 	memoryService interfaces.MemoryService,
 	storageResolver interfaces.StorageBackendResolver,
+	cognitivePathRepo interfaces.CognitivePathRepository,
 	toolApprovalGate approval.MCPApproval,
 	sandboxMgr sandbox.Manager,
 	sandboxResolver sandbox.TenantSandboxResolver,
@@ -207,6 +209,7 @@ func NewAgentService(
 		messageService:       messageService,
 		memoryService:        memoryService,
 		storageResolver:      storageResolver,
+		cognitivePathRepo:    cognitivePathRepo,
 		toolApprovalGate:     toolApprovalGate,
 		sandboxMgr:           sandboxMgr,
 		sandboxResolver:      sandboxResolver,
@@ -1324,6 +1327,7 @@ func (s *agentService) registerTools(
 			tools.ToolReadDocument:        true,
 			tools.ToolListDocuments:       true,
 			tools.ToolQueryKnowledgeGraph: true,
+			tools.ToolQueryCognitivePaths: true,
 			tools.ToolDatabaseQuery:       true,
 			tools.ToolDataAnalysis:        true,
 			tools.ToolDataSchema:          true,
@@ -1514,6 +1518,8 @@ func (s *agentService) registerTools(
 			// read is resolved from the request context inside the service, so
 			// this tool needs no owner argument and none can be supplied.
 			toolToRegister = tools.NewSearchMemoryTool(s.memoryService)
+		case tools.ToolQueryCognitivePaths:
+			toolToRegister = tools.NewCognitivePathQueryTool(s.cognitivePathRepo, config.SearchTargets)
 		case tools.ToolDatabaseQuery:
 			toolToRegister = tools.NewDatabaseQueryTool(s.db, config.SearchTargets)
 		case tools.ToolWebSearch:

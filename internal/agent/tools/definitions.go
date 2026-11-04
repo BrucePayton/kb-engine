@@ -29,6 +29,7 @@ const (
 	ToolQueryKnowledgeGraph = "query_knowledge_graph"
 	ToolSearchConversations = "search_conversations"
 	ToolSearchMemory        = "search_memory"
+	ToolQueryCognitivePaths = "query_cognitive_paths"
 	ToolDatabaseQuery       = "database_query"
 	ToolDataAnalysis        = "data_analysis"
 	ToolDataSchema          = "data_schema"
@@ -133,6 +134,7 @@ func AvailableToolDefinitions() []AvailableTool {
 		{Name: ToolReadDocument, Label: "阅读文档", Description: "读取文档元数据与分块内容，支持分页和文内查找", Group: ToolGroupRAG},
 		{Name: ToolListDocuments, Label: "浏览文档列表", Description: "分页列出知识库中的文档", Group: ToolGroupRAG},
 		{Name: ToolQueryKnowledgeGraph, Label: "查询知识图谱", Description: "从知识图谱中查询关系", Group: ToolGroupRAG},
+		{Name: ToolQueryCognitivePaths, Label: "查询认知路径", Description: "只读查询知识空间中的结构化认知路径及来源", Group: ToolGroupRAG},
 		{Name: ToolDatabaseQuery, Label: "查询数据库", Description: "查询数据库中的信息", Group: ToolGroupRAG},
 		{Name: ToolWikiSearch, Label: "搜索Wiki", Description: "在Wiki中搜索页面", Group: ToolGroupWikiRead},
 		{Name: ToolWikiReadPage, Label: "读取Wiki页面", Description: "读取指定的Wiki页面内容", Group: ToolGroupWikiRead},
